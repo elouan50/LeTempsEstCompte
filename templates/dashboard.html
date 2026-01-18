@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - LeTempsEstCompté</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+
+        <div class="dashboard-header">
+            <div class="goal-display">
+                <h2>Today's Goal</h2>
+                <div id="editableGoal" class="goal-text" contenteditable="true"
+                    style="border-bottom: 1px dashed var(--text-secondary); outline: none;" onblur="updateGoal()">{{
+                    session.goal }}</div>
+            </div>
+            <div class="date-display" style="color: var(--text-secondary);">
+                {{ session.date.strftime('%B %d, %Y') }}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-bottom: 1.5rem;">Tasks</h3>
+
+            <div class="input-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <input type="text" id="newTaskInput" class="input-field" placeholder="Add a new task..."
+                    style="margin-bottom: 0;">
+                <button id="addTaskBtn" class="btn" style="white-space: nowrap;">Add Task</button>
+            </div>
+
+            <ul id="taskList" class="task-list">
+                {% for task in session.tasks %}
+                <li class="task-item {% if task.is_completed %}completed{% endif %}" data-id="{{ task.id }}">
+                    <div class="checkbox" onclick="toggleTask('{{ task.id }}')"></div>
+                    <span class="task-text" contenteditable="true"
+                        onblur="updateTaskDescription('{{ task.id }}', this.innerText)">{{ task.description }}</span>
+                    <button onclick="deleteTask('{{ task.id }}')" class="btn btn-secondary"
+                        style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: auto;">✕</button>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="controls-grid">
+            <div class="card control-card">
+                <h3>Pauses</h3>
+                <div id="pausesList" style="margin: 1rem 0; width: 100%;">
+                    {% for pause in session.pauses %}
+                    <div class="pause-item" data-pause-id="{{ pause.id }}"
+                        style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                        <input type="time" class="time-input pause-start"
+                            value="{{ pause.start_time.strftime('%H:%M') if pause.start_time else '' }}"
+                            onchange="updatePause('{{ pause.id }}', 'start', this.value)"
+                            data-date="{{ session.date.strftime('%Y-%m-%d') }}" style="flex: 1;">
+                        <span style="color: var(--text-secondary);">→</span>
+                        <input type="time" class="time-input pause-end"
+                            value="{{ pause.end_time.strftime('%H:%M') if pause.end_time else '' }}"
+                            onchange="updatePause('{{ pause.id }}', 'end', this.value)"
+                            data-date="{{ session.date.strftime('%Y-%m-%d') }}" style="flex: 1;">
+                        <button onclick="deletePause('{{ pause.id }}')" class="btn btn-secondary"
+                            style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">✕</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button onclick="addPause()" class="btn btn-secondary" style="width: 100%;">+ Add Pause</button>
+            </div>
+
+            <div class="card control-card">
+                <h3>Hours</h3>
+                {% if session.end_time %}
+                <p style="margin: 1rem 0; color: var(--success);">Day Completed</p>
+                <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <label>Start:</label>
+                        <input type="time" class="time-input"
+                            value="{{ session.start_time.strftime('%H:%M') if session.start_time else '' }}"
+                            onchange="updateTime('start', this.value)"
+                            data-date="{{ session.date.strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <label>End:</label>
+                        <input type="time" class="time-input" value="{{ session.end_time.strftime('%H:%M') }}"
+                            onchange="updateTime('end', this.value)"
+                            data-date="{{ session.date.strftime('%Y-%m-%d') }}">
+                    </div>
+                </div>
+                {% else %}
+                <p style="margin: 1rem 0; color: var(--text-secondary);">Ready to sign off?</p>
+                <button class="btn btn-danger" onclick="endDay()">Finish Day</button>
+                {% endif %}
+            </div>
+        </div>
+        <div style="margin-top: 3rem; display: flex; justify-content: center;">
+            <a href="/" class="btn btn-secondary" style="padding: 0.75rem 2rem; font-weight: 600;">
+                Save & Return to Homepage
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const SESSION_ID = '{{ session.id }}';
+
+        async function updateGoal() {
+            const goalEl = document.getElementById('editableGoal');
+            const newGoal = goalEl.innerText.trim();
+
+            // Optional: visual feedback
+            const originalColor = goalEl.style.color;
+
+            try {
+                const res = await fetch('/api/session/update_goal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: SESSION_ID, goal: newGoal })
+                });
+
+                if (res.ok) {
+                    goalEl.style.color = 'var(--success)';
+                    setTimeout(() => goalEl.style.color = '', 1000); // Reset after 1s
+                } else {
+                    alert('Failed to update goal');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function updateTaskDescription(taskId, newDescription) {
+            const res = await fetch('/api/task/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task_id: taskId, description: newDescription })
+            });
+
+            if (!res.ok) {
+                alert('Failed to update task');
+            }
+        }
+
+        async function deleteTask(taskId) {
+            if (!confirm('Delete this task?')) return;
+
+            const res = await fetch('/api/task/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task_id: taskId })
+            });
+
+            if (res.ok) {
+                const li = document.querySelector(`.task-item[data-id="${taskId}"]`);
+                if (li) li.remove();
+            } else {
+                alert('Failed to delete task');
+            }
+        }
+
+        async function updateTime(type, timeStr) {
+            const inputEl = event.target;
+            const dateStr = inputEl.getAttribute('data-date'); // YYYY-MM-DD
+
+            if (!dateStr || !timeStr) return;
+
+            // Construct local DateTime string: "YYYY-MM-DDTHH:MM:00"
+            const dateTimeStr = `${dateStr}T${timeStr}:00`;
+
+            const payload = { session_id: SESSION_ID };
+            if (type === 'start') payload.start_time = dateTimeStr;
+            if (type === 'end') payload.end_time = dateTimeStr;
+
+            const res = await fetch('/api/session/update_times', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                // Visual feedback
+                const originalColor = inputEl.style.color;
+                inputEl.style.color = 'var(--success)';
+                setTimeout(() => inputEl.style.color = originalColor, 1000);
+            } else {
+                alert('Failed to update time');
+            }
+        }
+
+        const SESSION_DATE = "{{ session.date.strftime('%Y-%m-%d') }}";
+
+        async function addPause() {
+            const res = await fetch('/api/pause/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: SESSION_ID })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                // Reload to show new pause row
+                window.location.reload();
+            } else {
+                alert('Failed to add pause');
+            }
+        }
+
+        async function updatePause(pauseId, type, timeStr) {
+            const inputEl = event.target;
+            const dateStr = inputEl.getAttribute('data-date');
+
+            if (!dateStr || !timeStr) return;
+
+            const dateTimeStr = `${dateStr}T${timeStr}:00`;
+
+            const payload = { pause_id: pauseId };
+            if (type === 'start') payload.start_time = dateTimeStr;
+            if (type === 'end') payload.end_time = dateTimeStr;
+
+            const res = await fetch('/api/pause/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const originalColor = inputEl.style.color;
+                inputEl.style.color = 'var(--success)';
+                setTimeout(() => inputEl.style.color = originalColor, 1000);
+            } else {
+                alert('Failed to update pause');
+            }
+        }
+
+        async function deletePause(pauseId) {
+            if (!confirm('Delete this pause?')) return;
+
+            const res = await fetch('/api/pause/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pause_id: pauseId })
+            });
+
+            if (res.ok) {
+                // Remove the row from DOM
+                const row = document.querySelector(`[data-pause-id="${pauseId}"]`);
+                if (row) row.remove();
+            } else {
+                alert('Failed to delete pause');
+            }
+        }
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>

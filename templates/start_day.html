@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeTempsEstCompté</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="start-container">
+        <div class="card start-card">
+            <h1>LeTempsEstCompté</h1>
+            <p>Set your intention for the day.</p>
+            <form action="/start" method="POST">
+                <div style="margin-bottom: 1rem;">
+                    <label
+                        style="display: block; text-align: left; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Date</label>
+                    <input type="date" name="date" class="input-field" required>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label
+                        style="display: block; text-align: left; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Main
+                        Goal</label>
+                    <input type="text" name="goal" class="input-field" placeholder="What is your main goal?">
+                </div>
+                <button type="submit" class="btn" style="width: 100%;">Start Day</button>
+            </form>
+            <script>
+                // Default to today
+                const dateInput = document.querySelector('input[name="date"]');
+                const goalInput = document.querySelector('input[name="goal"]');
+
+                dateInput.valueAsDate = new Date();
+
+                function updatePlaceholder() {
+                    // Use the input date (which handles timezone weirdness of valueAsDate being UTC sometimes by defaults, 
+                    // but on client side it usually works out if we stick to local string parsing or just use the date object correctly)
+                    // valueAsDate returns a UTC date, but we want the day of that date.
+
+                    const dateVal = dateInput.valueAsDate;
+                    if (dateVal) {
+                        const options = { weekday: 'long' };
+                        // We format the UTC date as if it were the user's local selected day? 
+                        // Actually valueAsDate treats the input as UTC midnight.
+                        // Intl.DateTimeFormat with 'UTC' timeZone is safest to get the exact day selected.
+                        const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(dateVal);
+                        goalInput.placeholder = dayName;
+                    }
+                }
+
+                updatePlaceholder();
+
+                // Update if user changes the date
+                dateInput.addEventListener('change', updatePlaceholder);
+            </script>
+            <div style="margin-top: 2rem;">
+                <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.9rem;">Back to
+                    Home</a>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

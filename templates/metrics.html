@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics - LeTempsEstCompté</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h1>LeTempsEstCompté</h1>
+            <a href="/new" class="btn">Start New Day</a>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h1>Daily Hours</h1>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 1rem;">
+                    <div class="chart-controls">
+                        <button class="btn btn-secondary btn-sm" onclick="switchView('week')">Week</button>
+                        <button class="btn btn-secondary btn-sm" onclick="switchView('month')">Month</button>
+                        <button class="btn btn-secondary btn-sm" onclick="switchView('year')">Year</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="navigate(-1)">←</button>
+                        <button class="btn btn-secondary btn-sm" onclick="goToToday()">Today</button>
+                        <span id="periodLabel"
+                            style="font-weight: 500; color: var(--text-primary); min-width: 180px; text-align: center;"></span>
+                        <button class="btn btn-secondary btn-sm" onclick="navigate(1)">→</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="height: 400px; width: 100%; margin-bottom: 2rem;">
+                <canvas id="metricsChart"></canvas>
+            </div>
+
+            <div id="statsSummary"
+                style="display: flex; gap: 2rem; margin-bottom: 2rem; padding-top: 1rem; border-top: 1px solid #334155;">
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Average Start</div>
+                    <div id="avgStart" style="font-size: 1.5rem; font-weight: 600;">--:--</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Average End</div>
+                    <div id="avgEnd" style="font-size: 1.5rem; font-weight: 600;">--:--</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Avg Pause</div>
+                    <div id="avgPause" style="font-size: 1.5rem; font-weight: 600;">-- min</div>
+                </div>
+                <!-- Only visible in week view usually, but we calculate for all. If month/year, it's total for that period -->
+                <div id="totalHoursContainer">
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Total Hours</div>
+                    <div id="totalHours" style="font-size: 1.5rem; font-weight: 600;">-- h</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2>Session History</h2>
+                <button onclick="openFilterModal()" class="btn btn-secondary btn-sm">
+                    Filter / Search
+                </button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="metrics-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Goal</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Pause</th>
+                            <th>Tasks Completed</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for session in sessions %}
+                        <tr>
+                            <td>{{ session.date.strftime('%Y-%m-%d') }}</td>
+                            <td>{{ session.goal }}</td>
+                            <td class="time-cell" data-type="start" data-session-id="{{ session.id }}"
+                                data-date="{{ session.date.strftime('%Y-%m-%d') }}"
+                                data-time="{{ session.start_time.isoformat() if session.start_time else '' }}">
+                            </td>
+                            <td class="time-cell" data-type="end" data-session-id="{{ session.id }}"
+                                data-date="{{ session.date.strftime('%Y-%m-%d') }}"
+                                data-time="{{ session.end_time.isoformat() if session.end_time else '' }}">
+                            </td>
+                            <td>
+                                {% set total_pause_mins = namespace(value=0) %}
+                                {% for pause in session.pauses %}
+                                {% if pause.start_time and pause.end_time %}
+                                {% set duration = pause.end_time - pause.start_time %}
+                                {% set total_pause_mins.value = total_pause_mins.value + (duration.total_seconds() / 60)
+                                | int %}
+                                {% endif %}
+                                {% endfor %}
+                                {% if total_pause_mins.value > 0 %}
+                                {{ total_pause_mins.value }}min
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set completed_tasks = session.tasks | selectattr('is_completed', 'equalto', true) |
+                                list %}
+                                {% set total_tasks = session.tasks|length %}
+
+                                {% if total_tasks > 0 %}
+                                <details class="task-details">
+                                    <summary>
+                                        {{ completed_tasks|length }} / {{ total_tasks }}
+                                        <span class="dropdown-icon">▼</span>
+                                    </summary>
+                                    <ul class="completed-task-list">
+                                        {% for task in session.tasks %}
+                                        <li style="display: flex; align-items: center; gap: 0.5rem;">
+                                            {% if task.is_completed %}
+                                            <span style="color: var(--success); font-weight: bold;">✓</span>
+                                            {% else %}
+                                            <span style="color: var(--danger); font-weight: bold;">✗</span>
+                                            {% endif %}
+                                            {{ task.description }}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </details>
+                                {% else %}
+                                0 / 0
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if session.end_time %}
+                                <span style="color: var(--success);">Completed</span>
+                                {% else %}
+                                <span style="color: var(--accent);">In Progress</span>
+                                {% endif %}
+                            </td>
+                            <td style="overflow: visible;">
+                                <details class="action-details">
+                                    <summary class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.75rem;">
+                                          <span style="font-size: 0.7rem;">▼    </span>
+                                    </summary>
+                                    <div class="action-menu-content">
+                                        <button onclick="updateSession('{{ session.id }}')">Update</button>
+                                        <button onclick="deleteSession('{{ session.id }}')"
+                                            class="text-danger">Delete</button>
+                                    </div>
+                                </details>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 2rem;">No sessions recorded yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Filter Modal -->
+    <div id="filterModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Filter Sessions</h2>
+                <button onclick="closeFilterModal()"
+                    style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.5rem;">&times;</button>
+            </div>
+
+            <div class="filter-group">
+                <label>Text Search</label>
+                <input type="text" id="filterText" placeholder="Start typing date, goal, or task..." class="input-field"
+                    style="margin-bottom:0;">
+            </div>
+
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>From Date</label>
+                    <input type="date" id="filterDateStart" class="input-field" style="margin-bottom:0;">
+                </div>
+                <div class="filter-group">
+                    <label>To Date</label>
+                    <input type="date" id="filterDateEnd" class="input-field" style="margin-bottom:0;">
+                </div>
+            </div>
+
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>Started Before</label>
+                    <input type="time" id="filterTimeStartBefore" class="input-field" style="margin-bottom:0;">
+                </div>
+                <div class="filter-group">
+                    <label>Ended After</label>
+                    <input type="time" id="filterTimeEndAfter" class="input-field" style="margin-bottom:0;">
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+                <div style="flex-grow: 1;"></div>
+                <button class="btn btn-secondary" onclick="closeFilterModal()">Cancel</button>
+                <button class="btn" onclick="applyFilters()">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.action-details')) {
+                document.querySelectorAll('.action-details[open]').forEach(el => {
+                    el.removeAttribute('open');
+                });
+            }
+        });
+
+        function updateSession(id) {
+            window.location.href = `/dashboard/${id}`;
+        }
+
+        async function deleteSession(id) {
+            if (!confirm('Are you sure you want to delete this session? This cannot be undone.')) return;
+
+            const res = await fetch('/api/session/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: id })
+            });
+
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                alert('Failed to delete session');
+            }
+        }
+
+        async function updateTime(sessionId, type, timeStr) {
+            // Find the date for this session from the row
+            // We can find the Date cell in the same row, or pass it. 
+            // Better: use the original full ISO string from data attribute to get the YYYY-MM-DD
+            // Actually, we can just grab the date from the backend data if we had it, but here in DOM...
+
+            // Let's use the row. The first cell is the date.
+            // But getting the row is slightly messy.
+            // EASIER: Store the full Date (YYYY-MM-DD) in a data attribute on the input or cell.
+
+            const inputEl = event.target;
+            const dateStr = inputEl.getAttribute('data-date'); // YYYY-MM-DD
+
+            if (!dateStr || !timeStr) return;
+
+            // Construct local DateTime string: "YYYY-MM-DDTHH:MM:00"
+            const dateTimeStr = `${dateStr}T${timeStr}:00`;
+            const dateObj = new Date(dateTimeStr); // Local date object
+            const isoStr = dateObj.toISOString();
+
+            const payload = { session_id: sessionId };
+            if (type === 'start') payload.start_time = isoStr;
+            if (type === 'end') payload.end_time = isoStr;
+
+            const res = await fetch('/api/session/update_times', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                // Ideally refresh chart data without full reload, but reload ensures consistency
+                // Let's settle for silent success or visual feedback?
+                // Full reload might interrupt if user is editing multiple.
+                // Let's re-fetch data for chart silently.
+                initMetrics();
+                // Visual feedback
+                const originalColor = inputEl.style.color;
+                inputEl.style.color = 'var(--success)';
+                setTimeout(() => inputEl.style.color = originalColor, 1000);
+            } else {
+                alert('Failed to update time');
+            }
+        }
+
+        let chartInstance = null;
+        let allData = [];
+        let currentViewDate = new Date();
+        let currentViewType = 'week';
+
+        function getLocalHour(isoString) {
+            if (!isoString) return null;
+            const date = new Date(isoString);
+            return date.getHours() + date.getMinutes() / 60;
+        }
+
+        function formatHour(val) {
+            if (val === null) return '';
+            const h = Math.floor(val);
+            const m = Math.round((val - h) * 60);
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+
+        async function initMetrics() {
+            const res = await fetch('/api/metrics/data?_=' + Date.now());
+            allData = await res.json();
+            switchView('week');
+        }
+
+        // Helper: Get Monday of the current week
+        function getStartOfWeek(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+            return new Date(d.setDate(diff));
+        }
+
+        function switchView(type) {
+            currentViewType = type;
+            currentViewDate = new Date(); // Reset to today on view switch ?? Or keep? Usually reset is better UX here.
+            renderCurrentView();
+        }
+
+        function goToToday() {
+            currentViewDate = new Date();
+            renderCurrentView();
+        }
+
+        function navigate(offset) {
+            const d = new Date(currentViewDate);
+            if (currentViewType === 'week') {
+                d.setDate(d.getDate() + (offset * 7));
+            } else if (currentViewType === 'month') {
+                d.setMonth(d.getMonth() + offset);
+            } else if (currentViewType === 'year') {
+                d.setFullYear(d.getFullYear() + offset);
+            }
+            currentViewDate = d;
+            renderCurrentView();
+        }
+
+        function updateLabel(start, end, singleLabel = null) {
+            const labelEl = document.getElementById('periodLabel');
+            const opts = { year: 'numeric', month: 'short', day: 'numeric' };
+            if (singleLabel) {
+                labelEl.innerText = singleLabel;
+            } else {
+                labelEl.innerText = `${start.toLocaleDateString('en-US', opts)} - ${end.toLocaleDateString('en-US', opts)}`;
+            }
+        }
+
+        // Helper to get total pause hours from pauses array
+        function getTotalPauseHours(pauses) {
+            if (!pauses || pauses.length === 0) return 0;
+            let total = 0;
+            pauses.forEach(p => {
+                const ps = getLocalHour(p.start_time);
+                const pe = getLocalHour(p.end_time);
+                if (ps !== null && pe !== null) {
+                    total += (pe - ps);
+                }
+            });
+            return total;
+        }
+
+        function getWorkSegments(entry) {
+            if (!entry || !entry.start_time) return [];
+            const s = getLocalHour(entry.start_time);
+            const e = getLocalHour(entry.end_time) || (s + 0.5); // smaller fallback for visual cue
+
+            let segments = [];
+            let currentStart = s;
+
+            // Filter and sort pauses that fall within the work day
+            const pauses = (entry.pauses || [])
+                .map(p => ({
+                    s: getLocalHour(p.start_time),
+                    e: getLocalHour(p.end_time)
+                }))
+                .filter(p => p.s !== null && p.e !== null && p.s >= s && p.e <= e)
+                .sort((a, b) => a.s - b.s);
+
+            pauses.forEach(p => {
+                if (p.s > currentStart) {
+                    segments.push([currentStart, p.s]);
+                }
+                currentStart = p.e;
+            });
+
+            if (e > currentStart) {
+                segments.push([currentStart, e]);
+            }
+            return segments;
+        }
+
+        function renderCurrentView() {
+            let chartLabels = [];
+            let chartDatasetsData = [];
+            let dayToSegments = []; // Temp storage for transposition
+            let chartIds = [];
+            let relevantData = [];
+            let todayIndex = null;
+            const now = new Date();
+            const todayY = now.getFullYear();
+            const todayM = now.getMonth();
+            const todayD = now.getDate();
+
+            // Helper to Average entries for year view
+            const computeAverage = (entries) => {
+                if (!entries || entries.length === 0) return null;
+                let count = 0;
+                let sumStart = 0, sumEnd = 0;
+
+                entries.forEach(e => {
+                    const s = getLocalHour(e.start_time);
+                    const end = getLocalHour(e.end_time);
+
+                    if (s !== null && end !== null) {
+                        sumStart += s;
+                        sumEnd += end;
+                        count++;
+                    }
+                });
+
+                if (count === 0) return null;
+                return {
+                    start: sumStart / count,
+                    end: sumEnd / count
+                };
+            };
+
+            if (currentViewType === 'week') {
+                const startOfWeek = getStartOfWeek(currentViewDate);
+                const endOfWeek = new Date(startOfWeek);
+                endOfWeek.setDate(endOfWeek.getDate() + 6);
+
+                updateLabel(startOfWeek, endOfWeek);
+
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(startOfWeek);
+                    d.setDate(startOfWeek.getDate() + i);
+                    const dateStr = d.toISOString().split('T')[0];
+                    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+
+                    if (d.getFullYear() === todayY && d.getMonth() === todayM && d.getDate() === todayD) {
+                        todayIndex = i;
+                    }
+
+                    chartLabels.push(`${dayName} ${d.getDate()}`);
+
+                    // Find data for this specific day
+                    const entry = allData.find(x => x.date.startsWith(dateStr));
+
+                    if (entry) {
+                        relevantData.push(entry);
+                        chartIds.push(entry.id);
+                        dayToSegments.push(getWorkSegments(entry));
+                    } else {
+                        chartIds.push(null);
+                        dayToSegments.push([]);
+                    }
+                }
+
+            } else if (currentViewType === 'month') {
+                const year = currentViewDate.getFullYear();
+                const month = currentViewDate.getMonth();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                // Label: month name + year
+                const monthName = currentViewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                updateLabel(null, null, monthName);
+
+                const monthEntries = allData.filter(x => {
+                    const d = new Date(x.date);
+                    return d.getFullYear() === year && d.getMonth() === month;
+                });
+                relevantData = monthEntries; // For stats
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateObj = new Date(year, month, day);
+                    const y = dateObj.getFullYear();
+                    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const d = String(dateObj.getDate()).padStart(2, '0');
+                    const dateKey = `${y}-${m}-${d}`;
+
+                    if (year === todayY && month === todayM && day === todayD) {
+                        todayIndex = day - 1;
+                    }
+
+                    chartLabels.push(day.toString());
+
+                    const entry = monthEntries.find(x => x.date.startsWith(dateKey));
+
+                    if (entry) {
+                        chartIds.push(entry.id);
+                        dayToSegments.push(getWorkSegments(entry));
+                    } else {
+                        chartIds.push(null);
+                        dayToSegments.push([]);
+                    }
+                }
+
+            } else if (currentViewType === 'year') {
+                const year = currentViewDate.getFullYear();
+                updateLabel(null, null, year.toString());
+
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+                const yearEntries = allData.filter(x => {
+                    const d = new Date(x.date);
+                    return d.getFullYear() === year;
+                });
+                relevantData = yearEntries;
+
+                months.forEach((mName, idx) => {
+                    chartLabels.push(mName);
+                    chartIds.push(null); // No specific ID for month aggregate
+
+                    if (year === todayY && idx === todayM) {
+                        todayIndex = idx;
+                    }
+
+                    const mEntries = yearEntries.filter(x => new Date(x.date).getMonth() === idx);
+                    const avg = computeAverage(mEntries);
+
+                    if (avg) {
+                        dayToSegments.push([[avg.start, avg.end]]);
+                    } else {
+                        dayToSegments.push([]);
+                    }
+                });
+            }
+
+            // Transpose dayToSegments (Array of segment arrays) into chartDatasetsData (Array of daily values per segment index)
+            const maxSegs = Math.max(1, ...dayToSegments.map(segs => segs.length));
+            for (let i = 0; i < maxSegs; i++) {
+                chartDatasetsData.push(dayToSegments.map(segs => segs[i] || null));
+            }
+
+            renderChart(chartLabels, chartDatasetsData, chartIds, todayIndex);
+            computeStats(relevantData);
+        }
+
+        function computeStats(data) {
+            let totalStart = 0, countStart = 0;
+            let totalEnd = 0, countEnd = 0;
+            let totalPause = 0, countPause = 0;
+            let totalWork = 0; // Hours
+
+            data.forEach(d => {
+                const start = getLocalHour(d.start_time);
+                const end = getLocalHour(d.end_time);
+                const pauseHours = getTotalPauseHours(d.pauses);
+
+                if (start) { totalStart += start; countStart++; }
+                if (end) { totalEnd += end; countEnd++; }
+                if (pauseHours > 0) { totalPause += pauseHours; countPause++; }
+
+                // Calculate worked hours for this entry
+                if (start && end) {
+                    let work = end - start - pauseHours;
+                    if (work > 0) totalWork += work;
+                }
+            });
+
+            const avgS = countStart ? totalStart / countStart : 0;
+            const avgE = countEnd ? totalEnd / countEnd : 0;
+            const avgP = countPause ? (totalPause / countPause) * 60 : 0; // mins
+
+            document.getElementById('avgStart').innerText = countStart ? formatHour(avgS) : '--:--';
+            document.getElementById('avgEnd').innerText = countEnd ? formatHour(avgE) : '--:--';
+            document.getElementById('avgPause').innerText = countPause ? Math.round(avgP) + 'min' : '--min';
+
+            // Format Total Hours
+            const h = Math.floor(totalWork);
+            const m = Math.round((totalWork - h) * 60);
+            document.getElementById('totalHours').innerText = `${h}h ${m.toString().padStart(2, '0')}min`;
+        }
+
+        function renderChart(labels, datasetsData, sessionIds, todayIndex) {
+            const ctx = document.getElementById('metricsChart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const datasets = datasetsData.map((data, idx) => ({
+                label: 'Working Time',
+                data: data,
+                backgroundColor: '#38bdf8',
+                borderRadius: 4,
+                borderSkipped: false
+            }));
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                plugins: [{
+                    id: 'todayHighlight',
+                    afterDraw: (chart) => {
+                        if (todayIndex !== null && todayIndex !== undefined && todayIndex >= 0) {
+                            const ctx = chart.ctx;
+                            const xAxis = chart.scales.x;
+                            const yAxis = chart.scales.y;
+
+                            // Ensure index is within range of current scale
+                            if (todayIndex < xAxis.ticks.length) {
+                                const x = xAxis.getPixelForTick(todayIndex);
+
+                                // Determine width
+                                let barWidth = 40; // Fallback
+                                const meta = chart.getDatasetMeta(0);
+                                if (meta.data[todayIndex] && meta.data[todayIndex].width) {
+                                    barWidth = meta.data[todayIndex].width;
+                                } else if (meta.data[0] && meta.data[0].width) {
+                                    barWidth = meta.data[0].width;
+                                }
+
+                                const padding = 8;
+                                const rectW = barWidth + (padding * 2);
+                                const rectX = x - (rectW / 2);
+
+                                const yTop = yAxis.getPixelForValue(20);
+                                const yBottom = yAxis.getPixelForValue(7);
+                                const rectH = yBottom - yTop;
+
+                                ctx.save();
+                                ctx.strokeStyle = '#ef4444'; // Red
+                                ctx.lineWidth = 2;
+                                ctx.beginPath();
+                                if (ctx.roundRect) {
+                                    ctx.roundRect(rectX, yTop, rectW, rectH, 10);
+                                } else {
+                                    ctx.rect(rectX, yTop, rectW, rectH);
+                                }
+                                ctx.stroke();
+                                ctx.restore();
+                            }
+                        }
+                    }
+                }],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'x',
+                    onClick: (e, elements) => {
+                        if (elements && elements.length > 0 && sessionIds) {
+                            const index = elements[0].index;
+                            const id = sessionIds[index];
+                            if (id) {
+                                window.location.href = `/dashboard/${id}`;
+                            }
+                        }
+                    },
+                    onHover: (event, chartElement) => {
+                        if (chartElement.length > 0 && sessionIds) {
+                            const index = chartElement[0].index;
+                            if (sessionIds[index]) {
+                                event.native.target.style.cursor = 'pointer';
+                                return;
+                            }
+                        }
+                        event.native.target.style.cursor = 'default';
+                    },
+                    scales: {
+                        y: {
+                            stacked: false,
+                            min: 7,
+                            max: 20,
+                            title: { display: true, text: 'Hour of Day' },
+                            grid: { color: '#334155' },
+                            ticks: {
+                                color: '#94a3b8',
+                                stepSize: 1,
+                                callback: function (value) {
+                                    return value + ':00';
+                                }
+                            }
+                        },
+                        x: {
+                            stacked: true,
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    const raw = context.raw;
+                                    if (!raw) return '';
+                                    const timeStr = formatHour(raw[0]) + ' - ' + formatHour(raw[1]);
+
+                                    if (sessionIds && sessionIds[context.dataIndex]) {
+                                        return [timeStr, '(Click to edit day)'];
+                                    }
+                                    return timeStr;
+                                }
+                            }
+                        },
+                        legend: {
+                            onClick: null,
+                            labels: {
+                                color: '#f8fafc'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function formatTableTimes() {
+            document.querySelectorAll('.time-cell').forEach(cell => {
+                const iso = cell.getAttribute('data-time');
+
+                if (iso) {
+                    const date = new Date(iso);
+                    const h = date.getHours().toString().padStart(2, '0');
+                    const m = date.getMinutes().toString().padStart(2, '0');
+                    cell.innerText = `${h}:${m}`;
+                } else {
+                    cell.innerText = '-';
+                }
+            });
+        }
+
+        // Filter Modal Logic
+        const modal = document.getElementById('filterModal');
+
+        function openFilterModal() {
+            modal.classList.add('active');
+        }
+
+        function closeFilterModal() {
+            modal.classList.remove('active');
+        }
+
+        function resetFilters() {
+            document.getElementById('filterText').value = '';
+            document.getElementById('filterDateStart').value = '';
+            document.getElementById('filterDateEnd').value = '';
+            document.getElementById('filterTimeStartBefore').value = '';
+            document.getElementById('filterTimeEndAfter').value = '';
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const textTerm = document.getElementById('filterText').value.toLowerCase();
+            const dateStart = document.getElementById('filterDateStart').value; // YYYY-MM-DD
+            const dateEnd = document.getElementById('filterDateEnd').value;     // YYYY-MM-DD
+            const startTimeBefore = document.getElementById('filterTimeStartBefore').value; // HH:MM
+            const endTimeAfter = document.getElementById('filterTimeEndAfter').value;     // HH:MM
+
+            const rows = document.querySelectorAll('.metrics-table tbody tr');
+
+            rows.forEach(row => {
+                // Skip "No sessions" row
+                if (row.cells.length < 2) return;
+
+                let show = true;
+
+                // 1. Text Search
+                if (textTerm) {
+                    let textMatch = false;
+                    // Check text content
+                    if (row.innerText.toLowerCase().includes(textTerm)) textMatch = true;
+                    // Check inputs
+                    const inputs = row.querySelectorAll('input');
+                    inputs.forEach(input => {
+                        if (input.value.toLowerCase().includes(textTerm)) textMatch = true;
+                    });
+                    if (!textMatch) show = false;
+                }
+
+                // Get row data
+                // Date is cell 0 (text content) or better from data attribute of Start/End cells
+                const dateCell = row.querySelector('[data-date]');
+                const rowDate = dateCell ? dateCell.getAttribute('data-date') : null; // YYYY-MM-DD
+
+                // 2. Date Range
+                if (show && rowDate) {
+                    if (dateStart && rowDate < dateStart) show = false;
+                    if (dateEnd && rowDate > dateEnd) show = false;
+                }
+
+                // 3. Time Logic
+                // Start time cell input value
+                const startInput = row.querySelector('td[data-type="start"] input');
+                const endInput = row.querySelector('td[data-type="end"] input');
+                const rowStart = startInput ? startInput.value : ''; // HH:MM
+                const rowEnd = endInput ? endInput.value : '';     // HH:MM
+
+                if (show && startTimeBefore && rowStart) {
+                    if (rowStart >= startTimeBefore) show = false;
+                }
+
+                if (show && endTimeAfter && rowEnd) {
+                    if (rowEnd <= endTimeAfter) show = false;
+                }
+
+                row.style.display = show ? '' : 'none';
+            });
+
+            closeFilterModal();
+        }
+
+        // Close modal on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeFilterModal();
+        });
+
+        formatTableTimes();
+        initMetrics();
+    </script>
+</body>
+
+</html>
