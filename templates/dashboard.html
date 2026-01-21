@@ -72,9 +72,8 @@
 
             <div class="card control-card">
                 <h3>Hours</h3>
-                {% if session.end_time %}
-                <p style="margin: 1rem 0; color: var(--success);">Day Completed</p>
-                <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center;">
+                <div
+                    style="display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center; margin-top: 1rem;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <label>Start:</label>
                         <input type="time" class="time-input"
@@ -84,15 +83,12 @@
                     </div>
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <label>End:</label>
-                        <input type="time" class="time-input" value="{{ session.end_time.strftime('%H:%M') }}"
+                        <input type="time" class="time-input"
+                            value="{{ session.end_time.strftime('%H:%M') if session.end_time else '' }}"
                             onchange="updateTime('end', this.value)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}">
                     </div>
                 </div>
-                {% else %}
-                <p style="margin: 1rem 0; color: var(--text-secondary);">Ready to sign off?</p>
-                <button class="btn btn-danger" onclick="endDay()">Finish Day</button>
-                {% endif %}
             </div>
         </div>
         <div style="margin-top: 3rem; display: flex; justify-content: center;">
@@ -163,14 +159,15 @@
             const inputEl = event.target;
             const dateStr = inputEl.getAttribute('data-date'); // YYYY-MM-DD
 
-            if (!dateStr || !timeStr) return;
-
-            // Construct local DateTime string: "YYYY-MM-DDTHH:MM:00"
-            const dateTimeStr = `${dateStr}T${timeStr}:00`;
-
             const payload = { session_id: SESSION_ID };
-            if (type === 'start') payload.start_time = dateTimeStr;
-            if (type === 'end') payload.end_time = dateTimeStr;
+            if (timeStr) {
+                const dateTimeStr = `${dateStr}T${timeStr}:00`;
+                if (type === 'start') payload.start_time = dateTimeStr;
+                if (type === 'end') payload.end_time = dateTimeStr;
+            } else {
+                if (type === 'end') payload.end_time = null;
+                else return; // Don't allow clearing start time
+            }
 
             const res = await fetch('/api/session/update_times', {
                 method: 'POST',

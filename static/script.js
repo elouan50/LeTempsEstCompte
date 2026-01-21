@@ -52,16 +52,4 @@ async function toggleTask(taskId) {
 
 
 
-async function endDay() {
-    if (!confirm("Are you sure you want to end your day?")) return;
 
-    const response = await fetch('/api/day/end', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: SESSION_ID })
-    });
-
-    if (response.ok) {
-        window.location.href = '/';
-    }
-}

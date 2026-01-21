@@ -184,16 +184,7 @@ def delete_pause():
     db.session.commit()
     return jsonify({'status': 'success'})
 
-@app.route('/api/day/end', methods=['POST'])
-def end_day():
-    data = request.json
-    session_id = data.get('session_id')
-    session = DailySession.query.get(session_id)
-    if session:
-        session.end_time = datetime.now()
-        db.session.commit()
-        return jsonify({'status': 'success'})
-    return jsonify({'error': 'Session not found'}), 404
+
 
 
 
@@ -222,13 +213,16 @@ def update_session_times():
     if not session:
         return jsonify({'error': 'Session not found'}), 404
         
-    if start_time_str:
+    if 'start_time' in data and data['start_time']:
         # Parse as naive datetime (local time)
-        session.start_time = datetime.fromisoformat(start_time_str.replace('Z', ''))
+        session.start_time = datetime.fromisoformat(data['start_time'].replace('Z', ''))
     
-    if end_time_str:
-        # Parse as naive datetime (local time)
-        session.end_time = datetime.fromisoformat(end_time_str.replace('Z', ''))
+    if 'end_time' in data:
+        if data['end_time']:
+            # Parse as naive datetime (local time)
+            session.end_time = datetime.fromisoformat(data['end_time'].replace('Z', ''))
+        else:
+            session.end_time = None
         
     db.session.commit()
     return jsonify({'status': 'success'})
