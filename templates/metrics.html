@@ -563,13 +563,31 @@
             let totalPause = 0, countPause = 0;
             let totalWork = 0; // Hours
 
+            const now = new Date();
+            const todayY = now.getFullYear();
+            const todayM = now.getMonth();
+            const todayD = now.getDate();
+
             data.forEach(d => {
                 const start = getLocalHour(d.start_time);
-                const end = getLocalHour(d.end_time);
+                let end = getLocalHour(d.end_time);
+
+                // If in progress and it's today, use current time for stats
+                if (!end && start) {
+                    const sessionDate = new Date(d.date);
+                    if (sessionDate.getFullYear() === todayY &&
+                        sessionDate.getMonth() === todayM &&
+                        sessionDate.getDate() === todayD) {
+                        end = now.getHours() + (now.getMinutes() / 60);
+                    }
+                }
+
                 const pauseHours = getTotalPauseHours(d.pauses);
 
                 if (start) { totalStart += start; countStart++; }
-                if (end) { totalEnd += end; countEnd++; }
+                // We only count actual "End" times for the "Average End" stat to avoid skewing while the day is in progress
+                if (getLocalHour(d.end_time)) { totalEnd += end; countEnd++; }
+
                 if (pauseHours > 0) { totalPause += pauseHours; countPause++; }
 
                 // Calculate worked hours for this entry
@@ -788,6 +806,7 @@
         formatTableTimes();
         initMetrics();
     </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 
 </html>
