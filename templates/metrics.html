@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 
 <head>
     <meta charset="UTF-8">
@@ -356,7 +356,7 @@
             if (singleLabel) {
                 labelEl.innerText = singleLabel;
             } else {
-                labelEl.innerText = `${start.toLocaleDateString('en-US', opts)} - ${end.toLocaleDateString('en-US', opts)}`;
+                labelEl.innerText = `${start.toLocaleDateString(undefined, opts)} - ${end.toLocaleDateString(undefined, opts)}`;
             }
         }
 
@@ -456,7 +456,7 @@
                     const d = new Date(startOfWeek);
                     d.setDate(startOfWeek.getDate() + i);
                     const dateStr = d.toISOString().split('T')[0];
-                    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                    const dayName = d.toLocaleDateString(undefined, { weekday: 'short' });
 
                     if (d.getFullYear() === todayY && d.getMonth() === todayM && d.getDate() === todayD) {
                         todayIndex = i;
@@ -483,7 +483,7 @@
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
 
                 // Label: month name + year
-                const monthName = currentViewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                const monthName = currentViewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
                 updateLabel(null, null, monthName);
 
                 const monthEntries = allData.filter(x => {

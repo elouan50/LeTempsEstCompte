@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 
 <head>
     <meta charset="UTF-8">
@@ -49,7 +49,7 @@
                         // We format the UTC date as if it were the user's local selected day? 
                         // Actually valueAsDate treats the input as UTC midnight.
                         // Intl.DateTimeFormat with 'UTC' timeZone is safest to get the exact day selected.
-                        const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(dateVal);
+                        const dayName = new Intl.DateTimeFormat(undefined, { weekday: 'long', timeZone: 'UTC' }).format(dateVal);
                         goalInput.placeholder = dayName;
                     }
                 }
