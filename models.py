@@ -7,6 +7,7 @@ class DailySession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, default=datetime.now)
     goal = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="work")
     start_time = db.Column(db.DateTime, default=datetime.now)
     end_time = db.Column(db.DateTime, nullable=True)
 

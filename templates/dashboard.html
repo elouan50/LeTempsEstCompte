@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en-GB">
+<html lang="de-CH">
 
 <head>
     <meta charset="UTF-8">
@@ -19,8 +19,19 @@
                     style="border-bottom: 1px dashed var(--text-secondary); outline: none;" onblur="updateGoal()">{{
                     session.goal }}</div>
             </div>
-            <div class="date-display" style="color: var(--text-secondary);">
-                {{ session.date.strftime('%B %d, %Y') }}
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.5rem;">
+                <div class="date-display" style="color: var(--text-secondary);">
+                    {{ session.date.strftime('%B %d, %Y') }}
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <label for="statusSelect" style="color: var(--text-secondary); font-size:0.9rem;">Status</label>
+                    <select id="statusSelect" class="input-field" style="padding:0.4rem 0.6rem; width:auto;"
+                        onchange="updateStatus()">
+                        <option value="work" {% if session.status == 'work' %}selected{% endif %}>Arbeit</option>
+                        <option value="sick" {% if session.status == 'sick' %}selected{% endif %}>Krank</option>
+                        <option value="vacation" {% if session.status == 'vacation' %}selected{% endif %}>Urlaub</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -53,21 +64,26 @@
                     {% for pause in session.pauses %}
                     <div class="pause-item" data-pause-id="{{ pause.id }}"
                         style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
-                        <input type="time" class="time-input pause-start"
+                        <input type="text" class="time-input time-text-input pause-start"
                             value="{{ pause.start_time.strftime('%H:%M') if pause.start_time else '' }}"
-                            onchange="updatePause('{{ pause.id }}', 'start', this.value)"
+                            placeholder="HH:MM" inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                            onblur="formatTimeInput(this); updatePause('{{ pause.id }}', 'start', this)"
+                            onchange="updatePause('{{ pause.id }}', 'start', this)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}" style="flex: 1;">
                         <span style="color: var(--text-secondary);">→</span>
-                        <input type="time" class="time-input pause-end"
+                        <input type="text" class="time-input time-text-input pause-end"
                             value="{{ pause.end_time.strftime('%H:%M') if pause.end_time else '' }}"
-                            onchange="updatePause('{{ pause.id }}', 'end', this.value)"
+                            placeholder="HH:MM" inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                            onblur="formatTimeInput(this); updatePause('{{ pause.id }}', 'end', this)"
+                            onchange="updatePause('{{ pause.id }}', 'end', this)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}" style="flex: 1;">
                         <button onclick="deletePause('{{ pause.id }}')" class="btn btn-secondary"
                             style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">✕</button>
                     </div>
                     {% endfor %}
                 </div>
-                <button onclick="addPause()" class="btn btn-secondary" style="width: 100%;">+ Add Pause</button>
+                <button id="addPauseBtn" onclick="addPause()" class="btn btn-secondary" style="width: 100%;">+ Add
+                    Pause</button>
             </div>
 
             <div class="card control-card">
@@ -76,17 +92,26 @@
                     style="display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center; margin-top: 1rem;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <label>Start:</label>
-                        <input type="time" class="time-input"
+                        <input type="text" id="startTimeInput" class="time-input time-text-input"
                             value="{{ session.start_time.strftime('%H:%M') if session.start_time else '' }}"
-                            onchange="updateTime('start', this.value)"
+                            placeholder="HH:MM" inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                            onblur="formatTimeInput(this); updateTime('start', this)"
+                            onchange="updateTime('start', this)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}">
                     </div>
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <label>End:</label>
-                        <input type="time" class="time-input"
+                        <input type="text" id="endTimeInput" class="time-input time-text-input"
                             value="{{ session.end_time.strftime('%H:%M') if session.end_time else '' }}"
-                            onchange="updateTime('end', this.value)"
+                            placeholder="HH:MM" inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                            onblur="formatTimeInput(this); updateTime('end', this)"
+                            onchange="updateTime('end', this)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div id="totalWorkRow"
+                        style="display:flex; align-items:center; gap:0.75rem; color: var(--text-secondary);">
+                        <span>Total:</span>
+                        <strong id="totalWorkDisplay" style="color: var(--text-primary);">--:--</strong>
                     </div>
                 </div>
             </div>
@@ -100,6 +125,7 @@
 
     <script>
         const SESSION_ID = '{{ session.id }}';
+        const INITIAL_STATUS = '{{ session.status }}';
 
         async function updateGoal() {
             const goalEl = document.getElementById('editableGoal');
@@ -155,13 +181,16 @@
             }
         }
 
-        async function updateTime(type, timeStr) {
-            const inputEl = event.target;
+        async function updateTime(type, inputEl) {
+            if (!inputEl) return;
             const dateStr = inputEl.getAttribute('data-date'); // YYYY-MM-DD
 
             const payload = { session_id: SESSION_ID };
-            if (timeStr) {
-                const dateTimeStr = `${dateStr}T${timeStr}:00`;
+            if (inputEl.value) {
+                const normalized = normalizeTimeInput(inputEl.value);
+                if (!normalized) return;
+                inputEl.value = normalized;
+                const dateTimeStr = `${dateStr}T${normalized}:00`;
                 if (type === 'start') payload.start_time = dateTimeStr;
                 if (type === 'end') payload.end_time = dateTimeStr;
             } else {
@@ -180,6 +209,7 @@
                 const originalColor = inputEl.style.color;
                 inputEl.style.color = 'var(--success)';
                 setTimeout(() => inputEl.style.color = originalColor, 1000);
+                updateTotalWork();
             } else {
                 alert('Failed to update time');
             }
@@ -203,13 +233,16 @@
             }
         }
 
-        async function updatePause(pauseId, type, timeStr) {
-            const inputEl = event.target;
+        async function updatePause(pauseId, type, inputEl) {
+            if (!inputEl) return;
             const dateStr = inputEl.getAttribute('data-date');
 
-            if (!dateStr || !timeStr) return;
+            if (!dateStr || !inputEl.value) return;
 
-            const dateTimeStr = `${dateStr}T${timeStr}:00`;
+            const normalized = normalizeTimeInput(inputEl.value);
+            if (!normalized) return;
+            inputEl.value = normalized;
+            const dateTimeStr = `${dateStr}T${normalized}:00`;
 
             const payload = { pause_id: pauseId };
             if (type === 'start') payload.start_time = dateTimeStr;
@@ -225,6 +258,7 @@
                 const originalColor = inputEl.style.color;
                 inputEl.style.color = 'var(--success)';
                 setTimeout(() => inputEl.style.color = originalColor, 1000);
+                updateTotalWork();
             } else {
                 alert('Failed to update pause');
             }
@@ -247,6 +281,110 @@
                 alert('Failed to delete pause');
             }
         }
+
+        function applyStatusUi(status) {
+            const timeInputs = document.querySelectorAll('.time-input');
+            const pauseRows = document.querySelectorAll('.pause-item');
+            const addPauseBtn = document.getElementById('addPauseBtn');
+
+            const isWork = status === 'work';
+            timeInputs.forEach(input => {
+                input.disabled = !isWork;
+                if (!isWork) input.value = '';
+            });
+            pauseRows.forEach(row => {
+                row.style.display = isWork ? '' : 'none';
+            });
+            if (addPauseBtn) addPauseBtn.disabled = !isWork;
+        }
+
+        function normalizeTimeInput(value) {
+            if (!value) return null;
+            const trimmed = value.trim();
+            const onlyHours = trimmed.match(/^([01]?\d|2[0-3])$/);
+            if (onlyHours) {
+                const h = onlyHours[1].padStart(2, '0');
+                return `${h}:00`;
+            }
+            const withColon = trimmed.match(/^([01]?\d|2[0-3]):([0-5]?\d)$/);
+            if (withColon) {
+                const h = withColon[1].padStart(2, '0');
+                const m = withColon[2].padStart(2, '0');
+                return `${h}:${m}`;
+            }
+            return null;
+        }
+
+        function timeToMinutes(value) {
+            const normalized = normalizeTimeInput(value);
+            if (!normalized) return null;
+            const [h, m] = normalized.split(':').map(Number);
+            return (h * 60) + m;
+        }
+
+        function updateTotalWork() {
+            const startInput = document.getElementById('startTimeInput');
+            const endInput = document.getElementById('endTimeInput');
+            const display = document.getElementById('totalWorkDisplay');
+            if (!display || !startInput || !endInput) return;
+
+            const startMin = timeToMinutes(startInput.value);
+            const endMin = timeToMinutes(endInput.value);
+            if (startMin === null || endMin === null || endMin < startMin) {
+                display.textContent = '--:--';
+                return;
+            }
+
+            let pauseMinutes = 0;
+            document.querySelectorAll('.pause-item').forEach(row => {
+                const ps = row.querySelector('.pause-start');
+                const pe = row.querySelector('.pause-end');
+                const psMin = ps ? timeToMinutes(ps.value) : null;
+                const peMin = pe ? timeToMinutes(pe.value) : null;
+                if (psMin === null || peMin === null || peMin <= psMin) return;
+
+                // Clamp pause to the work window
+                const clampStart = Math.max(startMin, psMin);
+                const clampEnd = Math.min(endMin, peMin);
+                if (clampEnd > clampStart) {
+                    pauseMinutes += (clampEnd - clampStart);
+                }
+            });
+
+            const total = Math.max(0, (endMin - startMin) - pauseMinutes);
+            const h = Math.floor(total / 60);
+            const m = total % 60;
+            display.textContent = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+
+        function formatTimeInput(inputEl) {
+            const normalized = normalizeTimeInput(inputEl.value);
+            if (normalized) {
+                inputEl.value = normalized;
+            }
+        }
+
+        async function updateStatus() {
+            const select = document.getElementById('statusSelect');
+            const status = select.value;
+            const res = await fetch('/api/session/update_status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: SESSION_ID, status })
+            });
+
+            if (res.ok) {
+                applyStatusUi(status);
+            } else {
+                alert('Failed to update status');
+            }
+        }
+
+        applyStatusUi(INITIAL_STATUS);
+        document.querySelectorAll('.time-text-input').forEach(input => {
+            input.addEventListener('blur', () => formatTimeInput(input));
+        });
+        updateTotalWork();
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

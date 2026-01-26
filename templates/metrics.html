@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en-GB">
+<html lang="de-CH">
 
 <head>
     <meta charset="UTF-8">
@@ -16,7 +16,10 @@
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
             <h1>LeTempsEstCompté</h1>
-            <a href="/new" class="btn">Start New Day</a>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end;">
+                <a href="/reports" class="btn btn-secondary">Berichte</a>
+                <a href="/new" class="btn">Start New Day</a>
+            </div>
         </div>
 
         <div class="card">
@@ -92,13 +95,16 @@
                             <td>{{ session.goal }}</td>
                             <td class="time-cell" data-type="start" data-session-id="{{ session.id }}"
                                 data-date="{{ session.date.strftime('%Y-%m-%d') }}"
-                                data-time="{{ session.start_time.isoformat() if session.start_time else '' }}">
+                                data-time="{{ session.start_time.isoformat() if session.start_time and session.status == 'work' else '' }}">
                             </td>
                             <td class="time-cell" data-type="end" data-session-id="{{ session.id }}"
                                 data-date="{{ session.date.strftime('%Y-%m-%d') }}"
-                                data-time="{{ session.end_time.isoformat() if session.end_time else '' }}">
+                                data-time="{{ session.end_time.isoformat() if session.end_time and session.status == 'work' else '' }}">
                             </td>
                             <td>
+                                {% if session.status != 'work' %}
+                                -
+                                {% else %}
                                 {% set total_pause_mins = namespace(value=0) %}
                                 {% for pause in session.pauses %}
                                 {% if pause.start_time and pause.end_time %}
@@ -111,6 +117,7 @@
                                 {{ total_pause_mins.value }}min
                                 {% else %}
                                 -
+                                {% endif %}
                                 {% endif %}
                             </td>
                             <td>
@@ -142,10 +149,16 @@
                                 {% endif %}
                             </td>
                             <td>
+                                {% if session.status == 'sick' %}
+                                <span style="color: var(--accent);">Krank</span>
+                                {% elif session.status == 'vacation' %}
+                                <span style="color: var(--accent);">Urlaub</span>
+                                {% else %}
                                 {% if session.end_time %}
                                 <span style="color: var(--success);">Completed</span>
                                 {% else %}
                                 <span style="color: var(--accent);">In Progress</span>
+                                {% endif %}
                                 {% endif %}
                             </td>
                             <td style="overflow: visible;">
@@ -202,11 +215,13 @@
             <div class="filter-row">
                 <div class="filter-group">
                     <label>Started Before</label>
-                    <input type="time" id="filterTimeStartBefore" class="input-field" style="margin-bottom:0;">
+                    <input type="text" id="filterTimeStartBefore" class="input-field" placeholder="HH:MM"
+                        inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$" style="margin-bottom:0;">
                 </div>
                 <div class="filter-group">
                     <label>Ended After</label>
-                    <input type="time" id="filterTimeEndAfter" class="input-field" style="margin-bottom:0;">
+                    <input type="text" id="filterTimeEndAfter" class="input-field" placeholder="HH:MM"
+                        inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$" style="margin-bottom:0;">
                 </div>
             </div>
 
@@ -742,8 +757,8 @@
             const textTerm = document.getElementById('filterText').value.toLowerCase();
             const dateStart = document.getElementById('filterDateStart').value; // YYYY-MM-DD
             const dateEnd = document.getElementById('filterDateEnd').value;     // YYYY-MM-DD
-            const startTimeBefore = document.getElementById('filterTimeStartBefore').value; // HH:MM
-            const endTimeAfter = document.getElementById('filterTimeEndAfter').value;     // HH:MM
+            const startTimeBefore = normalizeTimeInput(document.getElementById('filterTimeStartBefore').value); // HH:MM
+            const endTimeAfter = normalizeTimeInput(document.getElementById('filterTimeEndAfter').value);     // HH:MM
 
             const rows = document.querySelectorAll('.metrics-table tbody tr');
 
@@ -797,6 +812,25 @@
 
             closeFilterModal();
         }
+
+        function normalizeTimeInput(value) {
+            if (!value) return null;
+            const trimmed = value.trim();
+            const match = trimmed.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+            if (!match) return null;
+            const h = match[1].padStart(2, '0');
+            const m = match[2];
+            return `${h}:${m}`;
+        }
+
+        document.getElementById('filterTimeStartBefore').addEventListener('blur', (e) => {
+            const normalized = normalizeTimeInput(e.target.value);
+            if (normalized) e.target.value = normalized;
+        });
+        document.getElementById('filterTimeEndAfter').addEventListener('blur', (e) => {
+            const normalized = normalizeTimeInput(e.target.value);
+            if (normalized) e.target.value = normalized;
+        });
 
         // Close modal on outside click
         modal.addEventListener('click', (e) => {
