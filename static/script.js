@@ -14,31 +14,37 @@ if (addTaskBtn) {
 
 async function addTask() {
     const input = document.getElementById('newTaskInput');
-    const description = input.value.trim();
-    if (!description) return;
+    const raw = input.value.trim();
+    if (!raw) return;
 
-    const response = await fetch('/api/task/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: SESSION_ID, description: description })
-    });
+    const parts = raw.split(';').map(part => part.trim()).filter(Boolean);
+    if (parts.length === 0) return;
 
-    if (response.ok) {
-        const task = await response.json();
-        const list = document.getElementById('taskList');
-        const li = document.createElement('li');
-        li.className = 'task-item';
-        li.dataset.id = task.id;
-        li.innerHTML = `
-            <div class="checkbox" onclick="toggleTask('${task.id}')"></div>
-            <span class="task-text" contenteditable="true" 
-                onblur="updateTaskDescription('${task.id}', this.innerText)">${task.description}</span>
-            <button onclick="deleteTask('${task.id}')" class="btn btn-secondary" 
-                style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: auto;">✕</button>
-        `;
-        list.appendChild(li);
-        input.value = '';
+    const list = document.getElementById('taskList');
+    for (const description of parts) {
+        const response = await fetch('/api/task/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: SESSION_ID, description: description })
+        });
+
+        if (response.ok) {
+            const task = await response.json();
+            const li = document.createElement('li');
+            li.className = 'task-item';
+            li.dataset.id = task.id;
+            li.innerHTML = `
+                <div class="checkbox" onclick="toggleTask('${task.id}')"></div>
+                <span class="task-text" contenteditable="true" 
+                    onblur="updateTaskDescription('${task.id}', this.innerText)">${task.description}</span>
+                <button onclick="deleteTask('${task.id}')" class="btn btn-secondary" 
+                    style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: auto;">✕</button>
+            `;
+            list.appendChild(li);
+        }
     }
+
+    input.value = '';
 }
 
 async function toggleTask(taskId) {

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - LeTempsEstCompte</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h1>Berichte</h1>
+            <a href="/" class="btn btn-secondary">Zurück</a>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-bottom: 1rem;">PDF-Bericht erstellen</h2>
+            <form method="POST" action="/reports/pdf">
+                <div class="filter-group">
+                    <label>Berichtstyp</label>
+                    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                        <label style="display:flex; align-items:center; gap:0.5rem;">
+                            <input type="radio" name="report_type" value="tasks" checked>
+                            Aufgabenbericht
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem;">
+                            <input type="radio" name="report_type" value="time">
+                            Zeiterfassungsbericht (inkl. Pausen)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label>Von</label>
+                        <input type="date" name="date_start" class="input-field" value="{{ default_start }}">
+                    </div>
+                    <div class="filter-group">
+                        <label>Bis</label>
+                        <input type="date" name="date_end" class="input-field" value="{{ default_end }}">
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; margin-top: 1rem;">
+                    <button class="btn" type="submit">PDF erzeugen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>
