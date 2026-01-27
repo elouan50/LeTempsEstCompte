@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="de-CH">
+<html lang="{{ lang }}">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reports - LeTempsEstCompte</title>
+    <title>{{ t['reports'] }} - {{ t['app_name'] }}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
@@ -12,44 +13,135 @@
 <body>
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <h1>Berichte</h1>
-            <a href="/" class="btn btn-secondary">Zurück</a>
+            <h1>{{ t['reports'] }}</h1>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; align-items: center;">
+                <div class="lang-switcher">
+                    <details class="action-details">
+                        <summary class="btn btn-secondary btn-sm"
+                            style="padding: 0.5rem 0.75rem; display: flex; align-items: center;">
+                            <svg class="lang-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                            </svg>
+                            {{ lang | upper }} <span style="font-size: 0.7rem; margin-left: 0.25rem;">▼</span>
+                        </summary>
+                        <div class="action-menu-content">
+                            <a href="/set_language/en"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇬🇧</span>
+                                English</a>
+                            <a href="/set_language/de"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇩🇪</span>
+                                Deutsch</a>
+                            <a href="/set_language/fr"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇫🇷</span>
+                                Français</a>
+                        </div>
+                    </details>
+                </div>
+                <a href="/" class="btn btn-secondary">{{ t['back'] }}</a>
+            </div>
         </div>
 
         <div class="card">
-            <h2 style="margin-bottom: 1rem;">PDF-Bericht erstellen</h2>
+            <h2 style="margin-bottom: 1.5rem;">{{ t['create_pdf_report'] }}</h2>
             <form method="POST" action="/reports/pdf">
+                <div class="filter-group" style="margin-bottom: 1.5rem;">
+                    <label>{{ t['reporter_name'] }}</label>
+                    <input type="text" name="reporter_name" class="input-field" value="{{ t['default_reporter_name'] }}"
+                        required>
+                </div>
+
                 <div class="filter-group">
-                    <label>Berichtstyp</label>
+                    <label>{{ t['report_type'] }}</label>
                     <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
                         <label style="display:flex; align-items:center; gap:0.5rem;">
                             <input type="radio" name="report_type" value="tasks" checked>
-                            Aufgabenbericht
+                            {{ t['task_report_radio'] }}
                         </label>
                         <label style="display:flex; align-items:center; gap:0.5rem;">
                             <input type="radio" name="report_type" value="time">
-                            Zeiterfassungsbericht (inkl. Pausen)
+                            {{ t['time_report_radio'] }}
                         </label>
+                    </div>
+                </div>
+
+                <div class="filter-group" style="margin-bottom: 2rem;">
+                    <label>{{ t['quick_select_month'] }}</label>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                        <select id="quickMonth" class="input-field" style="margin-bottom: 0; width: auto;">
+                            <option value="">-- {{ t['select_month'] }} --</option>
+                            {% for month_name in t['full_months'] %}
+                            <option value="{{ loop.index }}">{{ month_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="quickYear" class="input-field" style="margin-bottom: 0; width: auto;">
+                            <option value="">-- {{ t['select_year'] }} --</option>
+                            <!-- Generate last 5 years -->
+                        </select>
+                        <button type="button" class="btn btn-secondary" onclick="applyQuickMonth()">{{ t['apply']
+                            }}</button>
                     </div>
                 </div>
 
                 <div class="filter-row">
                     <div class="filter-group">
-                        <label>Von</label>
-                        <input type="date" name="date_start" class="input-field" value="{{ default_start }}">
+                        <label>{{ t['from'] }}</label>
+                        <input type="date" name="date_start" id="dateStart" class="input-field"
+                            value="{{ default_start }}">
                     </div>
                     <div class="filter-group">
-                        <label>Bis</label>
-                        <input type="date" name="date_end" class="input-field" value="{{ default_end }}">
+                        <label>{{ t['to'] }}</label>
+                        <input type="date" name="date_end" id="dateEnd" class="input-field" value="{{ default_end }}">
                     </div>
                 </div>
 
                 <div style="display:flex; justify-content:flex-end; margin-top: 1rem;">
-                    <button class="btn" type="submit">PDF erzeugen</button>
+                    <button class="btn" type="submit">{{ t['generate_pdf'] }}</button>
                 </div>
             </form>
         </div>
     </div>
+    <script>
+        // Initialize Year dropdown
+        const yearSelect = document.getElementById('quickYear');
+        const currentYear = new Date().getFullYear();
+        for (let i = 0; i < 5; i++) {
+            const year = currentYear - i;
+            const opt = document.createElement('option');
+            opt.value = year;
+            opt.textContent = year;
+            if (i === 0) opt.selected = true;
+            yearSelect.appendChild(opt);
+        }
+
+        // Set current month as default in quick selection
+        document.getElementById('quickMonth').value = new Date().getMonth() + 1;
+
+        function applyQuickMonth() {
+            const m = parseInt(document.getElementById('quickMonth').value);
+            const y = parseInt(document.getElementById('quickYear').value);
+            if (!m || !y) return;
+
+            // Start of month: yyyy-mm-01
+            const startStr = `${y}-${m.toString().padStart(2, '0')}-01`;
+
+            // End of month: last day of month
+            const lastDay = new Date(y, m, 0).getDate();
+            const endStr = `${y}-${m.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+
+            document.getElementById('dateStart').value = startStr;
+            document.getElementById('dateEnd').value = endStr;
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.action-details')) {
+                document.querySelectorAll('.action-details[open]').forEach(el => {
+                    el.removeAttribute('open');
+                });
+            }
+        });
+    </script>
 </body>
 
 </html>

@@ -1,12 +1,16 @@
 <!DOCTYPE html>
-<html lang="de-CH">
+<html lang="{{ lang }}">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - LeTempsEstCompté</title>
+    <title>{{ t['app_name'] }} - Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        const i18n = {{ t | tojson }};
+    </script>
 </head>
 
 <body>
@@ -14,34 +18,56 @@
 
         <div class="dashboard-header">
             <div class="goal-display">
-                <h2>Today's Goal</h2>
+                <h2>{{ t['todays_goal'] }}</h2>
                 <div id="editableGoal" class="goal-text" contenteditable="true"
                     style="border-bottom: 1px dashed var(--text-secondary); outline: none;" onblur="updateGoal()">{{
                     session.goal }}</div>
             </div>
-            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.5rem;">
-                <div class="date-display" style="color: var(--text-secondary);">
-                    {{ session.date.strftime('%B %d, %Y') }}
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.25rem;">
+                <div class="lang-switcher" style="margin-bottom: 0.5rem;">
+                    <details class="action-details">
+                        <summary class="btn btn-secondary btn-sm"
+                            style="padding: 0.4rem 0.6rem; display: flex; align-items: center;">
+                            <svg class="lang-icon" viewBox="0 0 24 24" style="margin-right: 0.4rem;">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                            </svg>
+                            {{ lang | upper }} <span style="font-size: 0.7rem; margin-left: 0.25rem;">▼</span>
+                        </summary>
+                        <div class="action-menu-content">
+                            <a href="/set_language/en"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇬🇧</span>
+                                English</a>
+                            <a href="/set_language/de"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇩🇪</span>
+                                Deutsch</a>
+                            <a href="/set_language/fr"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇫🇷</span>
+                                Français</a>
+                        </div>
+                    </details>
                 </div>
-                <div style="display:flex; align-items:center; gap:0.5rem;">
-                    <label for="statusSelect" style="color: var(--text-secondary); font-size:0.9rem;">Status</label>
-                    <select id="statusSelect" class="input-field" style="padding:0.4rem 0.6rem; width:auto;"
-                        onchange="updateStatus()">
-                        <option value="work" {% if session.status == 'work' %}selected{% endif %}>Arbeit</option>
-                        <option value="sick" {% if session.status == 'sick' %}selected{% endif %}>Krank</option>
-                        <option value="vacation" {% if session.status == 'vacation' %}selected{% endif %}>Urlaub</option>
-                    </select>
+                <div class="date-display" style="color: var(--text-secondary); font-weight: 500;">
+                    {{ t['full_months'][session.date.month - 1] }} {{ session.date.day }}, {{ session.date.year }}
+                </div>
+                <div class="status-pill-group">
+                    <button class="status-pill {% if session.status == 'work' %}active{% endif %}" data-status="work"
+                        onclick="updateStatus('work')">{{ t['work'] }}</button>
+                    <button class="status-pill {% if session.status == 'sick' %}active{% endif %}" data-status="sick"
+                        onclick="updateStatus('sick')">{{ t['sick'] }}</button>
+                    <button class="status-pill {% if session.status == 'vacation' %}active{% endif %}"
+                        data-status="vacation" onclick="updateStatus('vacation')">{{ t['vacation'] }}</button>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <h3 style="margin-bottom: 1.5rem;">Tasks</h3>
+            <h3 style="margin-bottom: 1.5rem;">{{ t['tasks'] }}</h3>
 
             <div class="input-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
-                <input type="text" id="newTaskInput" class="input-field" placeholder="Add a new task..."
+                <input type="text" id="newTaskInput" class="input-field" placeholder="{{ t['add_new_task'] }}"
                     style="margin-bottom: 0;">
-                <button id="addTaskBtn" class="btn" style="white-space: nowrap;">Add Task</button>
+                <button id="addTaskBtn" class="btn" style="white-space: nowrap;">{{ t['add_task_btn'] }}</button>
             </div>
 
             <ul id="taskList" class="task-list">
@@ -59,22 +85,18 @@
 
         <div class="controls-grid">
             <div class="card control-card">
-                <h3>Pauses</h3>
+                <h3>{{ t['pauses'] }}</h3>
                 <div id="pausesList" style="margin: 1rem 0; width: 100%;">
                     {% for pause in session.pauses %}
                     <div class="pause-item" data-pause-id="{{ pause.id }}"
                         style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
-                        <input type="text" class="time-input time-text-input pause-start"
+                        <input type="time" class="time-input pause-start"
                             value="{{ pause.start_time.strftime('%H:%M') if pause.start_time else '' }}"
-                            placeholder="HH:MM" inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$"
-                            onblur="formatTimeInput(this); updatePause('{{ pause.id }}', 'start', this)"
                             onchange="updatePause('{{ pause.id }}', 'start', this)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}" style="flex: 1;">
                         <span style="color: var(--text-secondary);">→</span>
-                        <input type="text" class="time-input time-text-input pause-end"
+                        <input type="time" class="time-input pause-end"
                             value="{{ pause.end_time.strftime('%H:%M') if pause.end_time else '' }}"
-                            placeholder="HH:MM" inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$"
-                            onblur="formatTimeInput(this); updatePause('{{ pause.id }}', 'end', this)"
                             onchange="updatePause('{{ pause.id }}', 'end', this)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}" style="flex: 1;">
                         <button onclick="deletePause('{{ pause.id }}')" class="btn btn-secondary"
@@ -82,31 +104,25 @@
                     </div>
                     {% endfor %}
                 </div>
-                <button id="addPauseBtn" onclick="addPause()" class="btn btn-secondary" style="width: 100%;">+ Add
-                    Pause</button>
+                <button id="addPauseBtn" onclick="addPause()" class="btn btn-secondary" style="width: 100%;">{{
+                    t['add_pause_btn'] }}</button>
             </div>
 
             <div class="card control-card">
-                <h3>Hours</h3>
+                <h3>{{ t['hours'] }}</h3>
                 <div
                     style="display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center; margin-top: 1rem;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
-                        <label>Start:</label>
-                        <input type="text" id="startTimeInput" class="time-input time-text-input"
+                        <label>{{ t['start'] }}:</label>
+                        <input type="time" id="startTimeInput" class="time-input"
                             value="{{ session.start_time.strftime('%H:%M') if session.start_time else '' }}"
-                            placeholder="HH:MM" inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$"
-                            onblur="formatTimeInput(this); updateTime('start', this)"
-                            onchange="updateTime('start', this)"
-                            data-date="{{ session.date.strftime('%Y-%m-%d') }}">
+                            onchange="updateTime('start', this)" data-date="{{ session.date.strftime('%Y-%m-%d') }}">
                     </div>
                     <div style="display: flex; align-items: center; gap: 1rem;">
-                        <label>End:</label>
-                        <input type="text" id="endTimeInput" class="time-input time-text-input"
+                        <label>{{ t['end'] }}:</label>
+                        <input type="time" id="endTimeInput" class="time-input"
                             value="{{ session.end_time.strftime('%H:%M') if session.end_time else '' }}"
-                            placeholder="HH:MM" inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$"
-                            onblur="formatTimeInput(this); updateTime('end', this)"
-                            onchange="updateTime('end', this)"
-                            data-date="{{ session.date.strftime('%Y-%m-%d') }}">
+                            onchange="updateTime('end', this)" data-date="{{ session.date.strftime('%Y-%m-%d') }}">
                     </div>
                     <div id="totalWorkRow"
                         style="display:flex; align-items:center; gap:0.75rem; color: var(--text-secondary);">
@@ -118,7 +134,7 @@
         </div>
         <div style="margin-top: 3rem; display: flex; justify-content: center;">
             <a href="/" class="btn btn-secondary" style="padding: 0.75rem 2rem; font-weight: 600;">
-                Save & Return to Homepage
+                {{ t['save_return'] }}
             </a>
         </div>
     </div>
@@ -131,7 +147,6 @@
             const goalEl = document.getElementById('editableGoal');
             const newGoal = goalEl.innerText.trim();
 
-            // Optional: visual feedback
             const originalColor = goalEl.style.color;
 
             try {
@@ -145,7 +160,7 @@
                     goalEl.style.color = 'var(--success)';
                     setTimeout(() => goalEl.style.color = '', 1000); // Reset after 1s
                 } else {
-                    alert('Failed to update goal');
+                    alert(i18n['failed_update_goal']);
                 }
             } catch (e) {
                 console.error(e);
@@ -160,12 +175,12 @@
             });
 
             if (!res.ok) {
-                alert('Failed to update task');
+                alert(i18n['failed_update_task']);
             }
         }
 
         async function deleteTask(taskId) {
-            if (!confirm('Delete this task?')) return;
+            if (!confirm(i18n['delete_task_confirm'])) return;
 
             const res = await fetch('/api/task/delete', {
                 method: 'POST',
@@ -177,7 +192,7 @@
                 const li = document.querySelector(`.task-item[data-id="${taskId}"]`);
                 if (li) li.remove();
             } else {
-                alert('Failed to delete task');
+                alert(i18n['failed_delete_task']);
             }
         }
 
@@ -187,10 +202,8 @@
 
             const payload = { session_id: SESSION_ID };
             if (inputEl.value) {
-                const normalized = normalizeTimeInput(inputEl.value);
-                if (!normalized) return;
-                inputEl.value = normalized;
-                const dateTimeStr = `${dateStr}T${normalized}:00`;
+                // value is already HH:mm from native input
+                const dateTimeStr = `${dateStr}T${inputEl.value}:00`;
                 if (type === 'start') payload.start_time = dateTimeStr;
                 if (type === 'end') payload.end_time = dateTimeStr;
             } else {
@@ -211,7 +224,7 @@
                 setTimeout(() => inputEl.style.color = originalColor, 1000);
                 updateTotalWork();
             } else {
-                alert('Failed to update time');
+                alert(i18n['failed_update']);
             }
         }
 
@@ -229,7 +242,7 @@
                 // Reload to show new pause row
                 window.location.reload();
             } else {
-                alert('Failed to add pause');
+                alert(i18n['failed_add_pause']);
             }
         }
 
@@ -239,10 +252,8 @@
 
             if (!dateStr || !inputEl.value) return;
 
-            const normalized = normalizeTimeInput(inputEl.value);
-            if (!normalized) return;
-            inputEl.value = normalized;
-            const dateTimeStr = `${dateStr}T${normalized}:00`;
+            // value is already HH:mm from native input
+            const dateTimeStr = `${dateStr}T${inputEl.value}:00`;
 
             const payload = { pause_id: pauseId };
             if (type === 'start') payload.start_time = dateTimeStr;
@@ -260,12 +271,12 @@
                 setTimeout(() => inputEl.style.color = originalColor, 1000);
                 updateTotalWork();
             } else {
-                alert('Failed to update pause');
+                alert(i18n['failed_update_pause']);
             }
         }
 
         async function deletePause(pauseId) {
-            if (!confirm('Delete this pause?')) return;
+            if (!confirm(i18n['delete_pause_confirm'])) return;
 
             const res = await fetch('/api/pause/delete', {
                 method: 'POST',
@@ -278,7 +289,7 @@
                 const row = document.querySelector(`[data-pause-id="${pauseId}"]`);
                 if (row) row.remove();
             } else {
-                alert('Failed to delete pause');
+                alert(i18n['failed_delete_pause']);
             }
         }
 
@@ -298,27 +309,11 @@
             if (addPauseBtn) addPauseBtn.disabled = !isWork;
         }
 
-        function normalizeTimeInput(value) {
-            if (!value) return null;
-            const trimmed = value.trim();
-            const onlyHours = trimmed.match(/^([01]?\d|2[0-3])$/);
-            if (onlyHours) {
-                const h = onlyHours[1].padStart(2, '0');
-                return `${h}:00`;
-            }
-            const withColon = trimmed.match(/^([01]?\d|2[0-3]):([0-5]?\d)$/);
-            if (withColon) {
-                const h = withColon[1].padStart(2, '0');
-                const m = withColon[2].padStart(2, '0');
-                return `${h}:${m}`;
-            }
-            return null;
-        }
-
         function timeToMinutes(value) {
-            const normalized = normalizeTimeInput(value);
-            if (!normalized) return null;
-            const [h, m] = normalized.split(':').map(Number);
+            if (!value) return null;
+            const parts = value.split(':');
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
             return (h * 60) + m;
         }
 
@@ -357,16 +352,8 @@
             display.textContent = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
         }
 
-        function formatTimeInput(inputEl) {
-            const normalized = normalizeTimeInput(inputEl.value);
-            if (normalized) {
-                inputEl.value = normalized;
-            }
-        }
 
-        async function updateStatus() {
-            const select = document.getElementById('statusSelect');
-            const status = select.value;
+        async function updateStatus(status) {
             const res = await fetch('/api/session/update_status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -376,15 +363,46 @@
             if (res.ok) {
                 applyStatusUi(status);
             } else {
-                alert('Failed to update status');
+                alert(i18n['failed_update_status']);
             }
         }
 
+        function applyStatusUi(status) {
+            const timeInputs = document.querySelectorAll('.time-input');
+            const pauseRows = document.querySelectorAll('.pause-item');
+            const addPauseBtn = document.getElementById('addPauseBtn');
+
+            const isWork = status === 'work';
+            timeInputs.forEach(input => {
+                input.disabled = !isWork;
+                if (!isWork) input.value = '';
+            });
+            pauseRows.forEach(row => {
+                row.style.display = isWork ? '' : 'none';
+            });
+            if (addPauseBtn) addPauseBtn.disabled = !isWork;
+
+            // Update pills
+            document.querySelectorAll('.status-pill').forEach(pill => {
+                if (pill.getAttribute('data-status') === status) {
+                    pill.classList.add('active');
+                } else {
+                    pill.classList.remove('active');
+                }
+            });
+        }
+
         applyStatusUi(INITIAL_STATUS);
-        document.querySelectorAll('.time-text-input').forEach(input => {
-            input.addEventListener('blur', () => formatTimeInput(input));
-        });
         updateTotalWork();
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.action-details')) {
+                document.querySelectorAll('.action-details[open]').forEach(el => {
+                    el.removeAttribute('open');
+                });
+            }
+        });
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

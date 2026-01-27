@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="de-CH">
+<html lang="{{ lang }}">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LeTempsEstCompté</title>
+    <title>{{ t['app_name'] }}</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,43 +13,64 @@
 </head>
 
 <body>
+    <div style="position: absolute; top: 1rem; right: 1rem;">
+        <div class="lang-switcher">
+            <details class="action-details">
+                <summary class="btn btn-secondary btn-sm"
+                    style="padding: 0.5rem 0.75rem; display: flex; align-items: center;">
+                    <svg class="lang-icon" viewBox="0 0 24 24"
+                        style="margin-right: 0.4rem; width: 16px; height: 16px; fill: currentColor;">
+                        <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                    </svg>
+                    {{ lang | upper }} <span style="font-size: 0.7rem; margin-left: 0.25rem;">▼</span>
+                </summary>
+                <div class="action-menu-content">
+                    <a href="/set_language/en"
+                        style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇬🇧</span>
+                        English</a>
+                    <a href="/set_language/de"
+                        style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇩🇪</span>
+                        Deutsch</a>
+                    <a href="/set_language/fr"
+                        style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇫🇷</span>
+                        Français</a>
+                </div>
+            </details>
+        </div>
+    </div>
+
     <div class="start-container">
         <div class="card start-card">
-            <h1>LeTempsEstCompté</h1>
-            <p>Set your intention for the day.</p>
+            <h1>{{ t['app_name'] }}</h1>
+            <p>{{ t['set_intention'] }}</p>
             <form action="/start" method="POST">
                 <div style="margin-bottom: 1rem;">
                     <label
-                        style="display: block; text-align: left; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Date</label>
+                        style="display: block; text-align: left; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">{{
+                        t['date'] }}</label>
                     <input type="date" name="date" class="input-field" required>
                 </div>
                 <div style="margin-bottom: 1rem;">
                     <label
-                        style="display: block; text-align: left; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Main
-                        Goal</label>
-                    <input type="text" name="goal" class="input-field" placeholder="What is your main goal?">
+                        style="display: block; text-align: left; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">{{
+                        t['main_goal'] }}</label>
+                    <input type="text" name="goal" class="input-field" placeholder="{{ t['placeholder_goal'] }}">
                 </div>
-                <button type="submit" class="btn" style="width: 100%;">Start Day</button>
+                <button type="submit" class="btn" style="width: 100%;">{{ t['start_day_btn'] }}</button>
             </form>
             <script>
                 // Default to today
                 const dateInput = document.querySelector('input[name="date"]');
                 const goalInput = document.querySelector('input[name="goal"]');
+                const currentLang = "{{ lang }}";
 
                 dateInput.valueAsDate = new Date();
 
                 function updatePlaceholder() {
-                    // Use the input date (which handles timezone weirdness of valueAsDate being UTC sometimes by defaults, 
-                    // but on client side it usually works out if we stick to local string parsing or just use the date object correctly)
-                    // valueAsDate returns a UTC date, but we want the day of that date.
-
                     const dateVal = dateInput.valueAsDate;
                     if (dateVal) {
-                        const options = { weekday: 'long' };
-                        // We format the UTC date as if it were the user's local selected day? 
-                        // Actually valueAsDate treats the input as UTC midnight.
-                        // Intl.DateTimeFormat with 'UTC' timeZone is safest to get the exact day selected.
-                        const dayName = new Intl.DateTimeFormat('de-CH', { weekday: 'long', timeZone: 'UTC' }).format(dateVal);
+                        const dayName = new Intl.DateTimeFormat(currentLang, { weekday: 'long', timeZone: 'UTC' }).format(dateVal);
                         goalInput.placeholder = dayName;
                     }
                 }
@@ -58,10 +79,19 @@
 
                 // Update if user changes the date
                 dateInput.addEventListener('change', updatePlaceholder);
+
+                // Close dropdowns when clicking outside
+                document.addEventListener('click', function (e) {
+                    if (!e.target.closest('.action-details')) {
+                        document.querySelectorAll('.action-details[open]').forEach(el => {
+                            el.removeAttribute('open');
+                        });
+                    }
+                });
             </script>
             <div style="margin-top: 2rem;">
-                <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.9rem;">Back to
-                    Home</a>
+                <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.9rem;">{{
+                    t['back_to_home'] }}</a>
             </div>
         </div>
     </div>

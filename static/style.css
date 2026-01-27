@@ -354,7 +354,7 @@ h3 {
     font-size: inherit;
     padding: 0.25rem;
     border-radius: 4px;
-    width: 100px;
+    width: 120px;
     cursor: pointer;
 }
 
@@ -371,6 +371,56 @@ h3 {
 
 /* Remove time input clock icon in Chrome for cleaner look if desired, but sometimes useful */
 /* .time-input::-webkit-calendar-picker-indicator { filter: invert(1); } */
+
+/* Language Switcher */
+.lang-icon {
+    width: 18px;
+    height: 18px;
+    margin-right: 0.5rem;
+    fill: currentColor;
+}
+
+/* Status Pills */
+.status-pill-group {
+    display: flex;
+    gap: 0.5rem;
+    background: #1e293b;
+    padding: 0.25rem;
+    border-radius: 99px;
+    border: 1px solid #334155;
+    margin-top: 0.5rem;
+}
+
+.status-pill {
+    padding: 0.4rem 0.8rem;
+    border-radius: 99px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.status-pill:hover {
+    color: var(--text-primary);
+}
+
+.status-pill.active {
+    background: var(--accent);
+    color: white;
+}
+
+.status-pill[data-status="sick"].active {
+    background: #a78bfa;
+    /* Violet */
+}
+
+.status-pill[data-status="vacation"].active {
+    background: #fb923c;
+    /* Orange */
+}
 
 /* Modal Styles */
 .modal-overlay {

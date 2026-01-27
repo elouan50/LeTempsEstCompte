@@ -7,6 +7,7 @@ import textwrap
 import io
 import os
 from sqlalchemy import text
+from translations import TRANSLATIONS
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
@@ -29,6 +30,24 @@ def ensure_status_column():
 with app.app_context():
     db.create_all()
     ensure_status_column()
+
+def get_locale():
+    return request.cookies.get('lang', 'en')
+
+@app.context_processor
+def inject_translations():
+    lang = get_locale()
+    if lang not in TRANSLATIONS:
+        lang = 'en'
+    return dict(lang=lang, t=TRANSLATIONS[lang], all_translations=TRANSLATIONS)
+
+@app.route('/set_language/<lang>')
+def set_language(lang):
+    if lang not in TRANSLATIONS:
+        lang = 'en'
+    response = redirect(request.referrer or url_for('index'))
+    response.set_cookie('lang', lang, max_age=31536000) # 1 year
+    return response
 
 @app.route('/')
 def index():
@@ -56,7 +75,9 @@ def start_day():
     
     # If goal is empty, use the Day Name (e.g. "Monday") as the goal
     if not goal or not goal.strip():
-        goal = session_date.strftime('%A')
+        lang = get_locale()
+        trans = TRANSLATIONS.get(lang, TRANSLATIONS['en'])
+        goal = trans['full_days'][session_date.weekday()]
         
     # Check if session exists for this date
     existing_session = DailySession.query.filter_by(date=session_date).first()
@@ -320,64 +341,128 @@ def sum_pause_minutes(pauses):
             total += int((pause.end_time - pause.start_time).total_seconds() / 60)
     return total
 
-def add_time_report_table(pdf, rows):
-    col_widths = [35, 75, 30, 30, 20]
-    headers = ["Date", "Note", "Work", "Pause", "Total"]
-    pdf.set_font("Helvetica", size=10)
-    for idx, header in enumerate(headers):
-        pdf.cell(col_widths[idx], 8, header, border=1, align="L")
-    pdf.ln(8)
+def add_time_report_table(pdf, rows, t):
+    col_widths = [45, 65, 27, 27, 26]
+    headers = [t['date'], t['note'], t['work'], t['pause'], t['total']]
+    
+    def render_header():
+        pdf.set_fill_color(30, 41, 59) # Slate 800
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", style="B", size=10)
+        for idx, header in enumerate(headers):
+            pdf.cell(col_widths[idx], 10, header, border=0, align="C", fill=True)
+        pdf.ln(10)
+        pdf.set_text_color(0, 0, 0)
 
     if not rows:
-        pdf.cell(sum(col_widths), 8, "No sessions in selected period.", border=1, align="L")
-        pdf.ln(8)
+        pdf.set_font("Helvetica", size=10)
+        pdf.cell(sum(col_widths), 10, "No sessions in selected period.", border=1, align="L")
+        pdf.ln(10)
         return
 
-    for row in rows:
+    current_month = None
+    render_header()
+
+    for idx, row in enumerate(rows):
+        # Month header logic
+        if row.get("type") == "day":
+            row_date = datetime.strptime(row["date_raw"], "%Y-%m-%d")
+            row_month = row_date.strftime("%Y-%m")
+            if row_month != current_month:
+                current_month = row_month
+                pdf.ln(2)
+                pdf.set_fill_color(241, 245, 249) # Slate 100
+                pdf.set_font("Helvetica", style="B", size=11)
+                month_name = t['full_months'][row_date.month - 1]
+                pdf.cell(sum(col_widths), 10, f"{month_name} {row_date.year}", border="B", align="L", fill=True)
+                pdf.ln(10)
+
+        # Style based on type
         if row.get("type") == "week_total":
-            pdf.set_font("Helvetica", style="B", size=10)
+            pdf.set_fill_color(248, 250, 252) # Slate 50
+            pdf.set_font("Helvetica", style="B", size=9)
+            border = 1
         else:
             pdf.set_font("Helvetica", size=10)
-        pdf.cell(col_widths[0], 8, row["date"], border=1, align="L")
-        pdf.cell(col_widths[1], 8, row["note"], border=1, align="L")
-        pdf.cell(col_widths[2], 8, row["work"], border=1, align="R")
-        pdf.cell(col_widths[3], 8, row["pause"], border=1, align="R")
-        pdf.cell(col_widths[4], 8, row["total"], border=1, align="R")
-        pdf.ln(8)
-    pdf.set_font("Helvetica", size=10)
+            if idx % 2 == 0:
+                pdf.set_fill_color(255, 255, 255)
+            else:
+                pdf.set_fill_color(252, 252, 252)
+            border = "B"
 
-def add_task_report_table(pdf, task_rows):
-    col_date = 35
-    col_tasks = 155
+        # Background color for status
+        if row.get("status") == "sick":
+            pdf.set_fill_color(245, 243, 255) # Light Violet
+        elif row.get("status") == "vacation":
+            pdf.set_fill_color(255, 247, 237) # Light Orange
+
+        pdf.cell(col_widths[0], 9, row["date"], border=border, align="L", fill=True)
+        pdf.cell(col_widths[1], 9, row["note"], border=border, align="L", fill=True)
+        pdf.cell(col_widths[2], 9, row["work"], border=border, align="R", fill=True)
+        pdf.cell(col_widths[3], 9, row["pause"], border=border, align="R", fill=True)
+        pdf.cell(col_widths[4], 9, row["total"], border=border, align="R", fill=True)
+        pdf.ln(9)
+
+        if pdf.get_y() > 260:
+            pdf.add_page()
+            render_header()
+
+def add_task_report_table(pdf, task_rows, t):
+    col_date = 45
+    col_tasks = 145
     line_height = 6
 
-    def add_header():
-        pdf.set_font("Helvetica", size=10)
-        pdf.cell(col_date, 8, "Date", border=1, align="L")
-        pdf.cell(col_tasks, 8, "Tasks", border=1, align="L")
-        pdf.ln(8)
+    def render_header():
+        pdf.set_fill_color(30, 41, 59)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", style="B", size=10)
+        pdf.cell(col_date, 10, t['date'], border=0, align="C", fill=True)
+        pdf.cell(col_tasks, 10, t['tasks'], border=0, align="C", fill=True)
+        pdf.ln(10)
+        pdf.set_text_color(0, 0, 0)
 
-    add_header()
+    render_header()
 
     if not task_rows:
-        pdf.cell(col_date + col_tasks, 8, "No sessions in selected period.", border=1, align="L")
-        pdf.ln(8)
+        pdf.set_font("Helvetica", size=10)
+        pdf.cell(col_date + col_tasks, 10, "No sessions in selected period.", border=1, align="L")
+        pdf.ln(10)
         return
 
-    for row in task_rows:
+    current_month = None
+
+    for idx, row in enumerate(task_rows):
+        row_date = datetime.strptime(row["date_raw"], "%Y-%m-%d")
+        row_month = row_date.strftime("%Y-%m")
+        if row_month != current_month:
+            current_month = row_month
+            pdf.ln(2)
+            pdf.set_fill_color(241, 245, 249)
+            pdf.set_font("Helvetica", style="B", size=11)
+            month_name = t['full_months'][row_date.month - 1]
+            pdf.cell(col_date + col_tasks, 10, f"{month_name} {row_date.year}", border="B", align="L", fill=True)
+            pdf.ln(10)
+
         tasks_text = row["tasks"] if row["tasks"] else "-"
-        tasks_lines = textwrap.wrap(tasks_text, width=90) or ["-"]
-        row_height = line_height * len(tasks_lines)
+        tasks_lines = textwrap.wrap(tasks_text, width=80) or ["-"]
+        row_height = max(line_height * len(tasks_lines), 9)
 
-        if pdf.get_y() + row_height > pdf.page_break_trigger:
+        if pdf.get_y() + row_height > 270:
             pdf.add_page()
-            add_header()
+            render_header()
 
-        x = pdf.get_x()
-        y = pdf.get_y()
-        pdf.multi_cell(col_date, row_height, row["date"], border=1, align="L")
+        if row.get("status") == "sick":
+            pdf.set_fill_color(245, 243, 255)
+        elif row.get("status") == "vacation":
+            pdf.set_fill_color(255, 247, 237)
+        else:
+            pdf.set_fill_color(255, 255, 255) if idx % 2 == 0 else pdf.set_fill_color(252, 252, 252)
+
+        x, y = pdf.get_x(), pdf.get_y()
+        pdf.set_font("Helvetica", size=10)
+        pdf.multi_cell(col_date, row_height, row["date"], border="B", align="L", fill=True)
         pdf.set_xy(x + col_date, y)
-        pdf.multi_cell(col_tasks, line_height, "\n".join(tasks_lines), border=1, align="L")
+        pdf.multi_cell(col_tasks, line_height if len(tasks_lines) > 1 else row_height, "\n".join(tasks_lines), border="B", align="L", fill=True)
         pdf.set_xy(x, y + row_height)
 
 @app.route('/reports')
@@ -393,6 +478,7 @@ def reports_pdf():
     report_type = request.form.get('report_type')
     start_str = request.form.get('date_start')
     end_str = request.form.get('date_end')
+    reporter_name = request.form.get('reporter_name', 'Felix Walger')
 
     if not start_str or not end_str:
         return redirect(url_for('reports'))
@@ -418,37 +504,52 @@ def reports_pdf():
     date_range_label = f"{start_date.isoformat()} to {end_date.isoformat()}"
 
     pdf.set_font("Helvetica", size=11)
-    pdf.cell(0, 8, "Felix Walger", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 8, reporter_name, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(2)
 
+    lang = get_locale()
+    trans = TRANSLATIONS.get(lang, TRANSLATIONS['en'])
+
     if report_type == "tasks":
-        pdf.cell(0, 10, "Task Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.set_font("Helvetica", size=11)
-        pdf.cell(0, 8, f"Period: {date_range_label}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.ln(4)
+        pdf.set_font("Helvetica", style="B", size=16)
+        pdf.cell(0, 10, trans['task_report'], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("Helvetica", size=10)
+        pdf.set_text_color(100, 100, 100)
+        pdf.cell(0, 6, f"{trans['period']}: {date_range_label}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(6)
+        pdf.set_text_color(0, 0, 0)
 
         task_rows = []
         for session in sessions:
             if session.status == "sick":
-                task_texts = ["KRANKHEIT"]
+                task_texts = [trans['krank']]
             elif session.status == "vacation":
-                task_texts = ["URLAUB"]
+                task_texts = [trans['urlaub']]
             else:
-                task_texts = [t.description for t in session.tasks]
+                task_texts = [task.description for task in session.tasks]
+            
+            day_name = trans['days'][session.date.strftime('%a')]
+            date_display = f"{day_name} {session.date.strftime('%d.%m.%Y')}"
+            
             task_rows.append({
-                "date": session.date.strftime('%Y-%m-%d'),
+                "date": date_display,
+                "date_raw": session.date.strftime('%Y-%m-%d'),
+                "status": session.status,
                 "tasks": "; ".join(task_texts) if task_texts else "-"
             })
 
-        add_task_report_table(pdf, task_rows)
+        add_task_report_table(pdf, task_rows, trans)
         filename = f"tasks_{start_date.isoformat()}_{end_date.isoformat()}.pdf"
 
     else:
-        pdf.cell(0, 10, "Time Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.set_font("Helvetica", size=11)
-        pdf.cell(0, 8, f"Period: {date_range_label}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.cell(0, 8, "Includes pauses.", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.ln(4)
+        pdf.set_font("Helvetica", style="B", size=16)
+        pdf.cell(0, 10, trans['time_report'], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("Helvetica", size=10)
+        pdf.set_text_color(100, 100, 100)
+        pdf.cell(0, 6, f"{trans['period']}: {date_range_label}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(0, 6, trans['includes_pauses'], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(6)
+        pdf.set_text_color(0, 0, 0)
 
         rows = []
         weekly_totals = {}
@@ -461,26 +562,31 @@ def reports_pdf():
                 work_minutes = 7 * 60 + 50
                 pause_minutes = 30
                 total_minutes = work_minutes + pause_minutes
-                note = "Krank" if session.status == "sick" else "Urlaub"
+                note = trans['krank'] if session.status == "sick" else trans['urlaub']
             else:
                 if not session.start_time or not session.end_time:
                     work_minutes = 0
                     pause_minutes = 0
                     total_minutes = 0
-                    note = "Unvollständig"
+                    note = trans['unfinished']
                 else:
                     total_minutes = int((session.end_time - session.start_time).total_seconds() / 60)
                     pause_minutes = sum_pause_minutes(session.pauses)
                     work_minutes = max(total_minutes - pause_minutes, 0)
-                    note = "Arbeit"
+                    note = trans['work']
 
             weekly_totals[(iso_year, iso_week)]["work"] += work_minutes
             weekly_totals[(iso_year, iso_week)]["pause"] += pause_minutes
             weekly_totals[(iso_year, iso_week)]["total"] += total_minutes
 
+            day_name = trans['days'][session.date.strftime('%a')]
+            date_display = f"{day_name} {session.date.strftime('%d.%m.%Y')}"
+
             rows.append({
                 "type": "day",
-                "date": session.date.strftime('%Y-%m-%d'),
+                "date": date_display,
+                "date_raw": session.date.strftime('%Y-%m-%d'),
+                "status": session.status,
                 "note": note,
                 "work": format_minutes(work_minutes),
                 "pause": format_minutes(pause_minutes),
@@ -490,7 +596,7 @@ def reports_pdf():
         detailed_rows = []
         current_week = None
         for row in rows:
-            row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
+            row_date = datetime.strptime(row["date_raw"], "%Y-%m-%d").date()
             iso_year, iso_week, _ = row_date.isocalendar()
             if current_week is None:
                 current_week = (iso_year, iso_week)
@@ -500,8 +606,8 @@ def reports_pdf():
                 week_end = week_start + timedelta(days=6)
                 detailed_rows.append({
                     "type": "week_total",
-                    "date": f"{current_week[0]}-W{current_week[1]:02d}",
-                    "note": f"Wochensumme ({week_start:%Y-%m-%d} - {week_end:%Y-%m-%d})",
+                    "date": f"W{current_week[1]:02d} Total",
+                    "note": f"({week_start:%d.%m} - {week_end:%d.%m})",
                     "work": format_minutes(totals["work"]),
                     "pause": format_minutes(totals["pause"]),
                     "total": format_minutes(totals["total"])
@@ -515,15 +621,14 @@ def reports_pdf():
             week_end = week_start + timedelta(days=6)
             detailed_rows.append({
                 "type": "week_total",
-                "date": f"{current_week[0]}-W{current_week[1]:02d}",
-                "note": f"Wochensumme ({week_start:%Y-%m-%d} - {week_end:%Y-%m-%d})",
+                "date": f"W{current_week[1]:02d} Total",
+                "note": f"({week_start:%d.%m} - {week_end:%d.%m})",
                 "work": format_minutes(totals["work"]),
                 "pause": format_minutes(totals["pause"]),
                 "total": format_minutes(totals["total"])
             })
 
-        add_time_report_table(pdf, detailed_rows)
-
+        add_time_report_table(pdf, detailed_rows, trans)
         filename = f"time_{start_date.isoformat()}_{end_date.isoformat()}.pdf"
 
     pdf_bytes = pdf.output()

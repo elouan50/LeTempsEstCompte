@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de-CH">
+<html lang="{{ lang }}">
 
 <head>
     <meta charset="UTF-8">
@@ -10,30 +10,57 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script>
+        const i18n = {{ t | tojson }};
+        const currentLang = "{{ lang }}";
+    </script>
 </head>
 
 <body>
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <h1>LeTempsEstCompté</h1>
-            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end;">
-                <a href="/reports" class="btn btn-secondary">Berichte</a>
-                <a href="/new" class="btn">Start New Day</a>
+            <h1>{{ t['app_name'] }}</h1>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; align-items: center;">
+                <div class="lang-switcher">
+                    <details class="action-details">
+                        <summary class="btn btn-secondary btn-sm"
+                            style="padding: 0.5rem 0.75rem; display: flex; align-items: center;">
+                            <svg class="lang-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                            </svg>
+                            {{ lang | upper }} <span style="font-size: 0.7rem; margin-left: 0.25rem;">▼</span>
+                        </summary>
+                        <div class="action-menu-content">
+                            <a href="/set_language/en"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇬🇧</span>
+                                English</a>
+                            <a href="/set_language/de"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇩🇪</span>
+                                Deutsch</a>
+                            <a href="/set_language/fr"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇫🇷</span>
+                                Français</a>
+                        </div>
+                    </details>
+                </div>
+                <a href="/reports" class="btn btn-secondary">{{ t['reports'] }}</a>
+                <a href="/new" class="btn">{{ t['start_new_day'] }}</a>
             </div>
         </div>
 
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                <h1>Daily Hours</h1>
+                <h1>{{ t['daily_hours'] }}</h1>
                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 1rem;">
                     <div class="chart-controls">
-                        <button class="btn btn-secondary btn-sm" onclick="switchView('week')">Week</button>
-                        <button class="btn btn-secondary btn-sm" onclick="switchView('month')">Month</button>
-                        <button class="btn btn-secondary btn-sm" onclick="switchView('year')">Year</button>
+                        <button class="btn btn-secondary btn-sm" onclick="switchView('week')">{{ t['week'] }}</button>
+                        <button class="btn btn-secondary btn-sm" onclick="switchView('month')">{{ t['month'] }}</button>
+                        <button class="btn btn-secondary btn-sm" onclick="switchView('year')">{{ t['year'] }}</button>
                     </div>
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <button class="btn btn-secondary btn-sm" onclick="navigate(-1)">←</button>
-                        <button class="btn btn-secondary btn-sm" onclick="goToToday()">Today</button>
+                        <button class="btn btn-secondary btn-sm" onclick="goToToday()">{{ t['today'] }}</button>
                         <span id="periodLabel"
                             style="font-weight: 500; color: var(--text-primary); min-width: 180px; text-align: center;"></span>
                         <button class="btn btn-secondary btn-sm" onclick="navigate(1)">→</button>
@@ -48,20 +75,20 @@
             <div id="statsSummary"
                 style="display: flex; gap: 2rem; margin-bottom: 2rem; padding-top: 1rem; border-top: 1px solid #334155;">
                 <div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Average Start</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['avg_start'] }}</div>
                     <div id="avgStart" style="font-size: 1.5rem; font-weight: 600;">--:--</div>
                 </div>
                 <div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Average End</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['avg_end'] }}</div>
                     <div id="avgEnd" style="font-size: 1.5rem; font-weight: 600;">--:--</div>
                 </div>
                 <div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Avg Pause</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['avg_pause'] }}</div>
                     <div id="avgPause" style="font-size: 1.5rem; font-weight: 600;">-- min</div>
                 </div>
                 <!-- Only visible in week view usually, but we calculate for all. If month/year, it's total for that period -->
                 <div id="totalHoursContainer">
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Total Hours</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['total_hours'] }}</div>
                     <div id="totalHours" style="font-size: 1.5rem; font-weight: 600;">-- h</div>
                 </div>
             </div>
@@ -69,23 +96,23 @@
 
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2>Session History</h2>
+                <h2>{{ t['session_history'] }}</h2>
                 <button onclick="openFilterModal()" class="btn btn-secondary btn-sm">
-                    Filter / Search
+                    {{ t['filter_search'] }}
                 </button>
             </div>
             <div style="overflow-x: auto;">
                 <table class="metrics-table">
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>Goal</th>
-                            <th>Start</th>
-                            <th>End</th>
-                            <th>Pause</th>
-                            <th>Tasks Completed</th>
-                            <th>Status</th>
-                            <th>Actions</th>
+                            <th>{{ t['date'] }}</th>
+                            <th>{{ t['goal'] }}</th>
+                            <th>{{ t['start'] }}</th>
+                            <th>{{ t['end'] }}</th>
+                            <th>{{ t['pause'] }}</th>
+                            <th>{{ t['tasks_completed'] }}</th>
+                            <th>{{ t['status'] }}</th>
+                            <th>{{ t['actions'] }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -150,14 +177,14 @@
                             </td>
                             <td>
                                 {% if session.status == 'sick' %}
-                                <span style="color: var(--accent);">Krank</span>
+                                <span style="color: var(--accent);">{{ t['sick'] }}</span>
                                 {% elif session.status == 'vacation' %}
-                                <span style="color: var(--accent);">Urlaub</span>
+                                <span style="color: var(--accent);">{{ t['vacation'] }}</span>
                                 {% else %}
                                 {% if session.end_time %}
-                                <span style="color: var(--success);">Completed</span>
+                                <span style="color: var(--success);">{{ t['completed'] }}</span>
                                 {% else %}
-                                <span style="color: var(--accent);">In Progress</span>
+                                <span style="color: var(--accent);">{{ t['in_progress'] }}</span>
                                 {% endif %}
                                 {% endif %}
                             </td>
@@ -167,16 +194,16 @@
                                           <span style="font-size: 0.7rem;">▼    </span>
                                     </summary>
                                     <div class="action-menu-content">
-                                        <button onclick="updateSession('{{ session.id }}')">Update</button>
-                                        <button onclick="deleteSession('{{ session.id }}')"
-                                            class="text-danger">Delete</button>
+                                        <button onclick="updateSession('{{ session.id }}')">{{ t['update'] }}</button>
+                                        <button onclick="deleteSession('{{ session.id }}')" class="text-danger">{{
+                                            t['delete'] }}</button>
                                     </div>
                                 </details>
                             </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="8" style="text-align: center; padding: 2rem;">No sessions recorded yet.</td>
+                            <td colspan="8" style="text-align: center; padding: 2rem;">{{ t['no_sessions'] }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -190,46 +217,46 @@
     <div id="filterModal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Filter Sessions</h2>
+                <h2>{{ t['filter_sessions'] }}</h2>
                 <button onclick="closeFilterModal()"
                     style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.5rem;">&times;</button>
             </div>
 
             <div class="filter-group">
-                <label>Text Search</label>
-                <input type="text" id="filterText" placeholder="Start typing date, goal, or task..." class="input-field"
+                <label>{{ t['text_search'] }}</label>
+                <input type="text" id="filterText" placeholder="{{ t['placeholder_search'] }}" class="input-field"
                     style="margin-bottom:0;">
             </div>
 
             <div class="filter-row">
                 <div class="filter-group">
-                    <label>From Date</label>
+                    <label>{{ t['from_date'] }}</label>
                     <input type="date" id="filterDateStart" class="input-field" style="margin-bottom:0;">
                 </div>
                 <div class="filter-group">
-                    <label>To Date</label>
+                    <label>{{ t['to_date'] }}</label>
                     <input type="date" id="filterDateEnd" class="input-field" style="margin-bottom:0;">
                 </div>
             </div>
 
             <div class="filter-row">
                 <div class="filter-group">
-                    <label>Started Before</label>
+                    <label>{{ t['started_before'] }}</label>
                     <input type="text" id="filterTimeStartBefore" class="input-field" placeholder="HH:MM"
                         inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$" style="margin-bottom:0;">
                 </div>
                 <div class="filter-group">
-                    <label>Ended After</label>
+                    <label>{{ t['ended_after'] }}</label>
                     <input type="text" id="filterTimeEndAfter" class="input-field" placeholder="HH:MM"
                         inputmode="numeric" pattern="^([01]\d|2[0-3]):[0-5]\d$" style="margin-bottom:0;">
                 </div>
             </div>
 
             <div class="modal-actions">
-                <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+                <button class="btn btn-secondary" onclick="resetFilters()">{{ t['reset'] }}</button>
                 <div style="flex-grow: 1;"></div>
-                <button class="btn btn-secondary" onclick="closeFilterModal()">Cancel</button>
-                <button class="btn" onclick="applyFilters()">Apply</button>
+                <button class="btn btn-secondary" onclick="closeFilterModal()">{{ t['cancel'] }}</button>
+                <button class="btn" onclick="applyFilters()">{{ t['apply'] }}</button>
             </div>
         </div>
     </div>
@@ -249,7 +276,7 @@
         }
 
         async function deleteSession(id) {
-            if (!confirm('Are you sure you want to delete this session? This cannot be undone.')) return;
+            if (!confirm(i18n['confirm_delete'])) return;
 
             const res = await fetch('/api/session/delete', {
                 method: 'POST',
@@ -260,7 +287,7 @@
             if (res.ok) {
                 window.location.reload();
             } else {
-                alert('Failed to delete session');
+                alert(i18n['failed_delete']);
             }
         }
 
@@ -305,7 +332,7 @@
                 inputEl.style.color = 'var(--success)';
                 setTimeout(() => inputEl.style.color = originalColor, 1000);
             } else {
-                alert('Failed to update time');
+                alert(i18n['failed_update']);
             }
         }
 
@@ -371,7 +398,7 @@
             if (singleLabel) {
                 labelEl.innerText = singleLabel;
             } else {
-                labelEl.innerText = `${start.toLocaleDateString(undefined, opts)} - ${end.toLocaleDateString(undefined, opts)}`;
+                labelEl.innerText = `${start.toLocaleDateString(currentLang, opts)} - ${end.toLocaleDateString(currentLang, opts)}`;
             }
         }
 
@@ -390,7 +417,13 @@
         }
 
         function getWorkSegments(entry) {
-            if (!entry || !entry.start_time) return [];
+            if (!entry) return [];
+
+            if (entry.status === 'sick' || entry.status === 'vacation') {
+                return [[9, 18]];
+            }
+
+            if (!entry.start_time) return [];
             const s = getLocalHour(entry.start_time);
             let e = getLocalHour(entry.end_time);
 
@@ -471,7 +504,7 @@
                     const d = new Date(startOfWeek);
                     d.setDate(startOfWeek.getDate() + i);
                     const dateStr = d.toISOString().split('T')[0];
-                    const dayName = d.toLocaleDateString(undefined, { weekday: 'short' });
+                    const dayName = d.toLocaleDateString(currentLang, { weekday: 'short' });
 
                     if (d.getFullYear() === todayY && d.getMonth() === todayM && d.getDate() === todayD) {
                         todayIndex = i;
@@ -498,7 +531,7 @@
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
 
                 // Label: month name + year
-                const monthName = currentViewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                const monthName = currentViewDate.toLocaleDateString(currentLang, { month: 'long', year: 'numeric' });
                 updateLabel(null, null, monthName);
 
                 const monthEntries = allData.filter(x => {
@@ -535,7 +568,8 @@
                 const year = currentViewDate.getFullYear();
                 updateLabel(null, null, year.toString());
 
-                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                const months = i18n['months'];
+                const monthNames = Object.values(months);
 
                 const yearEntries = allData.filter(x => {
                     const d = new Date(x.date);
@@ -543,7 +577,7 @@
                 });
                 relevantData = yearEntries;
 
-                months.forEach((mName, idx) => {
+                monthNames.forEach((mName, idx) => {
                     chartLabels.push(mName);
                     chartIds.push(null); // No specific ID for month aggregate
 
@@ -568,7 +602,21 @@
                 chartDatasetsData.push(dayToSegments.map(segs => segs[i] || null));
             }
 
-            renderChart(chartLabels, chartDatasetsData, chartIds, todayIndex);
+            // Extract status for each day to use for coloring
+            const dayStatuses = chartLabels.map((_, i) => {
+                const dateStr = currentViewType === 'week' ?
+                    new Date(getStartOfWeek(currentViewDate).getTime() + i * 86400000).toISOString().split('T')[0] :
+                    (currentViewType === 'month' ?
+                        `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}` :
+                        null);
+
+                if (currentViewType === 'year') return 'work'; // Month averages are always 'work' color
+
+                const entry = dateStr ? allData.find(x => x.date.startsWith(dateStr)) : null;
+                return entry ? entry.status : 'work';
+            });
+
+            renderChart(chartLabels, chartDatasetsData, chartIds, todayIndex, dayStatuses);
             computeStats(relevantData);
         }
 
@@ -626,26 +674,41 @@
             document.getElementById('totalHours').innerText = `${h}h ${m.toString().padStart(2, '0')}min`;
         }
 
-        function renderChart(labels, datasetsData, sessionIds, todayIndex) {
+        function renderChart(labels, datasetsData, sessionIds, todayIndex, dayStatuses) {
             const ctx = document.getElementById('metricsChart').getContext('2d');
 
             if (chartInstance) {
                 chartInstance.destroy();
             }
 
+            const colors = {
+                'work': '#38bdf8',
+                'vacation': '#fb923c', // Orange
+                'sick': '#a78bfa'     // Violet
+            };
+
             const datasets = datasetsData.map((data, idx) => ({
-                label: 'Working Time',
+                label: i18n['working_time'],
                 data: data,
-                backgroundColor: '#38bdf8',
+                backgroundColor: dayStatuses ? dayStatuses.map(s => colors[s] || colors['work']) : '#38bdf8',
                 borderRadius: 4,
                 borderSkipped: false
             }));
+
+            // Add dummy datasets for clean legend
+            const legendDatasets = [
+                { label: i18n['work'], backgroundColor: colors['work'], data: [] },
+                { label: i18n['vacation'], backgroundColor: colors['vacation'], data: [] },
+                { label: i18n['sick'], backgroundColor: colors['sick'], data: [] }
+            ];
+
+            const finalDatasets = [...datasets, ...legendDatasets];
 
             chartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
-                    datasets: datasets
+                    datasets: finalDatasets
                 },
 
                 options: {
@@ -676,7 +739,7 @@
                             stacked: false,
                             min: 7,
                             max: 20,
-                            title: { display: true, text: 'Hour of Day' },
+                            title: { display: true, text: i18n['hour_of_day'] },
                             grid: { color: '#334155' },
                             ticks: {
                                 color: '#94a3b8',
@@ -701,16 +764,20 @@
                                     const timeStr = formatHour(raw[0]) + ' - ' + formatHour(raw[1]);
 
                                     if (sessionIds && sessionIds[context.dataIndex]) {
-                                        return [timeStr, '(Click to edit day)'];
+                                        return [timeStr, `(${i18n['click_to_edit']})`];
                                     }
                                     return timeStr;
                                 }
                             }
                         },
                         legend: {
-                            onClick: null,
                             labels: {
-                                color: '#f8fafc'
+                                color: '#f8fafc',
+                                filter: function (item, chart) {
+                                    // Only show our dummy legend datasets (they have empty data arrays)
+                                    // or specifically label matching work/vacation/sick
+                                    return [i18n['work'], i18n['vacation'], i18n['sick']].includes(item.text);
+                                }
                             }
                         }
                     }
