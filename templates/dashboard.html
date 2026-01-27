@@ -11,6 +11,17 @@
     <script>
         const i18n = {{ t | tojson }};
     </script>
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#0f172a">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
+                    .then(reg => console.log('Service Worker registered', reg))
+                    .catch(err => console.error('Service Worker registration failed', err));
+            });
+        }
+    </script>
 </head>
 
 <body>
@@ -90,14 +101,14 @@
                     {% for pause in session.pauses %}
                     <div class="pause-item" data-pause-id="{{ pause.id }}"
                         style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
-                        <input type="time" class="time-input pause-start"
+                        <input type="text" class="time-input pause-start"
                             value="{{ pause.start_time.strftime('%H:%M') if pause.start_time else '' }}"
-                            onchange="updatePause('{{ pause.id }}', 'start', this)"
+                            placeholder="HH:MM" maxlength="5" onchange="updatePause('{{ pause.id }}', 'start', this)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}" style="flex: 1;">
                         <span style="color: var(--text-secondary);">→</span>
-                        <input type="time" class="time-input pause-end"
-                            value="{{ pause.end_time.strftime('%H:%M') if pause.end_time else '' }}"
-                            onchange="updatePause('{{ pause.id }}', 'end', this)"
+                        <input type="text" class="time-input pause-end"
+                            value="{{ pause.end_time.strftime('%H:%M') if pause.end_time else '' }}" placeholder="HH:MM"
+                            maxlength="5" onchange="updatePause('{{ pause.id }}', 'end', this)"
                             data-date="{{ session.date.strftime('%Y-%m-%d') }}" style="flex: 1;">
                         <button onclick="deletePause('{{ pause.id }}')" class="btn btn-secondary"
                             style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">✕</button>
@@ -114,15 +125,17 @@
                     style="display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center; margin-top: 1rem;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <label>{{ t['start'] }}:</label>
-                        <input type="time" id="startTimeInput" class="time-input"
+                        <input type="text" id="startTimeInput" class="time-input"
                             value="{{ session.start_time.strftime('%H:%M') if session.start_time else '' }}"
-                            onchange="updateTime('start', this)" data-date="{{ session.date.strftime('%Y-%m-%d') }}">
+                            placeholder="HH:MM" maxlength="5" onchange="updateTime('start', this)"
+                            data-date="{{ session.date.strftime('%Y-%m-%d') }}">
                     </div>
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <label>{{ t['end'] }}:</label>
-                        <input type="time" id="endTimeInput" class="time-input"
+                        <input type="text" id="endTimeInput" class="time-input"
                             value="{{ session.end_time.strftime('%H:%M') if session.end_time else '' }}"
-                            onchange="updateTime('end', this)" data-date="{{ session.date.strftime('%Y-%m-%d') }}">
+                            placeholder="HH:MM" maxlength="5" onchange="updateTime('end', this)"
+                            data-date="{{ session.date.strftime('%Y-%m-%d') }}">
                     </div>
                     <div id="totalWorkRow"
                         style="display:flex; align-items:center; gap:0.75rem; color: var(--text-secondary);">
@@ -392,6 +405,45 @@
             });
         }
 
+        function setupTimeInputs() {
+            document.querySelectorAll('.time-input').forEach(input => {
+                input.addEventListener('input', function (e) {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length > 4) val = val.slice(0, 4);
+
+                    if (val.length >= 2) {
+                        let h = val.slice(0, 2);
+                        if (parseInt(h) > 23) h = "23";
+                        let m = val.slice(2);
+                        if (m.length >= 2) {
+                            if (parseInt(m) > 59) m = "59";
+                            val = h + ":" + m.slice(0, 2);
+                        } else if (val.length > 2) {
+                            val = h + ":" + m;
+                        } else {
+                            val = h + ":";
+                        }
+                    }
+                    e.target.value = val;
+                });
+
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Backspace' && e.target.value.endsWith(':')) {
+                        e.preventDefault();
+                        e.target.value = e.target.value.slice(0, -2);
+                    }
+                });
+
+                // Trigger change on enter
+                input.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        e.target.blur();
+                    }
+                });
+            });
+        }
+
+        setupTimeInputs();
         applyStatusUi(INITIAL_STATUS);
         updateTotalWork();
 
