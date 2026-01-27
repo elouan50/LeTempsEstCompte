@@ -579,8 +579,7 @@
                 const year = currentViewDate.getFullYear();
                 updateLabel(null, null, year.toString());
 
-                const months = i18n['months'];
-                const monthNames = Object.values(months);
+                const monthsFull = i18n['full_months'];
 
                 const yearEntries = allData.filter(x => {
                     const d = new Date(x.date);
@@ -588,7 +587,8 @@
                 });
                 relevantData = yearEntries;
 
-                monthNames.forEach((mName, idx) => {
+                for (let idx = 0; idx < 12; idx++) {
+                    const mName = monthsFull[idx];
                     chartLabels.push(mName);
                     chartIds.push(null); // No specific ID for month aggregate
 
@@ -604,7 +604,7 @@
                     } else {
                         dayToSegments.push([]);
                     }
-                });
+                }
             }
 
             // Transpose dayToSegments (Array of segment arrays) into chartDatasetsData (Array of daily values per segment index)

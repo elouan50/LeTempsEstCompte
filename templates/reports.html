@@ -79,18 +79,19 @@
                 <div class="filter-group" style="margin-bottom: 2rem;">
                     <label>{{ t['quick_select_month'] }}</label>
                     <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
-                        <select id="quickMonth" class="input-field" style="margin-bottom: 0; width: auto;">
+                        <select id="quickMonth" class="input-field" style="margin-bottom: 0; width: auto;"
+                            onchange="applyQuickMonth()">
                             <option value="">-- {{ t['select_month'] }} --</option>
                             {% for month_name in t['full_months'] %}
                             <option value="{{ loop.index }}">{{ month_name }}</option>
                             {% endfor %}
                         </select>
-                        <select id="quickYear" class="input-field" style="margin-bottom: 0; width: auto;">
+                        <select id="quickYear" class="input-field" style="margin-bottom: 0; width: auto;"
+                            onchange="applyQuickMonth()">
                             <option value="">-- {{ t['select_year'] }} --</option>
                             <!-- Generate last 5 years -->
                         </select>
-                        <button type="button" class="btn btn-secondary" onclick="applyQuickMonth()">{{ t['apply']
-                            }}</button>
+
                     </div>
                 </div>
 
@@ -125,8 +126,9 @@
             yearSelect.appendChild(opt);
         }
 
-        // Set current month as default in quick selection
+        // Set current month as default and update dates
         document.getElementById('quickMonth').value = new Date().getMonth() + 1;
+        applyQuickMonth();
 
         function applyQuickMonth() {
             const m = parseInt(document.getElementById('quickMonth').value);

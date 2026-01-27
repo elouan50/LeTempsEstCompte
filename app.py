@@ -467,11 +467,16 @@ def add_task_report_table(pdf, task_rows, t):
 
 @app.route('/reports')
 def reports():
+    import calendar
     today = datetime.now().date()
-    default_start = today - timedelta(days=6)
+    # Default to current month
+    default_start = today.replace(day=1)
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    default_end = today.replace(day=last_day)
+    
     return render_template('reports.html',
                            default_start=default_start.isoformat(),
-                           default_end=today.isoformat())
+                           default_end=default_end.isoformat())
 
 @app.route('/reports/pdf', methods=['POST'])
 def reports_pdf():
