@@ -19,6 +19,12 @@
             });
         }
     </script>
+    <style>
+        .dimmed {
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+        }
+    </style>
 </head>
 
 <body>
@@ -66,11 +72,11 @@
                     <label>{{ t['report_type'] }}</label>
                     <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
                         <label style="display:flex; align-items:center; gap:0.5rem;">
-                            <input type="radio" name="report_type" value="tasks" checked>
+                            <input type="radio" name="report_type" value="tasks">
                             {{ t['task_report_radio'] }}
                         </label>
                         <label style="display:flex; align-items:center; gap:0.5rem;">
-                            <input type="radio" name="report_type" value="time">
+                            <input type="radio" name="report_type" value="time" checked>
                             {{ t['time_report_radio'] }}
                         </label>
                     </div>
@@ -81,14 +87,14 @@
                     <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
                         <select id="quickMonth" class="input-field" style="margin-bottom: 0; width: auto;"
                             onchange="applyQuickMonth()">
-                            <option value="">-- {{ t['select_month'] }} --</option>
+                            <option value="">-- {{ t['whole_year'] }} --</option>
                             {% for month_name in t['full_months'] %}
                             <option value="{{ loop.index }}">{{ month_name }}</option>
                             {% endfor %}
                         </select>
                         <select id="quickYear" class="input-field" style="margin-bottom: 0; width: auto;"
                             onchange="applyQuickMonth()">
-                            <option value="">-- {{ t['select_year'] }} --</option>
+                            <option value="">-- {{ t['all_time'] }} --</option>
                             <!-- Generate last 5 years -->
                         </select>
 
@@ -116,35 +122,88 @@
     <script>
         // Initialize Year dropdown
         const yearSelect = document.getElementById('quickYear');
+        const monthSelect = document.getElementById('quickMonth');
+        const dateStart = document.getElementById('dateStart');
+        const dateEnd = document.getElementById('dateEnd');
         const currentYear = new Date().getFullYear();
-        for (let i = 0; i < 5; i++) {
-            const year = currentYear - i;
-            const opt = document.createElement('option');
-            opt.value = year;
-            opt.textContent = year;
-            if (i === 0) opt.selected = true;
-            yearSelect.appendChild(opt);
+
+        if (yearSelect) {
+            for (let i = 0; i < 5; i++) {
+                const year = currentYear - i;
+                const opt = document.createElement('option');
+                opt.value = year;
+                opt.textContent = year;
+                if (i === 0) opt.selected = true;
+                yearSelect.appendChild(opt);
+            }
         }
 
         // Set current month as default and update dates
-        document.getElementById('quickMonth').value = new Date().getMonth() + 1;
+        if (monthSelect) {
+            monthSelect.value = new Date().getMonth() + 1;
+        }
+
+        // Initial setup
         applyQuickMonth();
 
         function applyQuickMonth() {
-            const m = parseInt(document.getElementById('quickMonth').value);
-            const y = parseInt(document.getElementById('quickYear').value);
-            if (!m || !y) return;
+            if (!monthSelect || !yearSelect || !dateStart || !dateEnd) return;
 
-            // Start of month: yyyy-mm-01
-            const startStr = `${y}-${m.toString().padStart(2, '0')}-01`;
+            const mVal = monthSelect.value;
+            const yVal = yearSelect.value;
 
-            // End of month: last day of month
-            const lastDay = new Date(y, m, 0).getDate();
-            const endStr = `${y}-${m.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+            let startStr, endStr;
+            const now = new Date();
 
-            document.getElementById('dateStart').value = startStr;
-            document.getElementById('dateEnd').value = endStr;
+            if (!yVal) {
+                // All-time: from 2000 to today (local)
+                startStr = "2000-01-01";
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                endStr = `${y}-${m}-${d}`;
+            } else {
+                const y = parseInt(yVal);
+                if (!mVal) {
+                    // Whole Year
+                    startStr = `${y}-01-01`;
+                    endStr = `${y}-12-31`;
+                } else {
+                    // Specific Month
+                    const m = parseInt(mVal);
+                    startStr = `${y}-${m.toString().padStart(2, '0')}-01`;
+                    const lastDay = new Date(y, m, 0).getDate();
+                    endStr = `${y}-${m.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+                }
+            }
+
+            dateStart.value = startStr;
+            dateEnd.value = endStr;
+
+            // Mark as active
+            monthSelect.classList.remove('dimmed');
+            yearSelect.classList.remove('dimmed');
+
+            validateDates();
         }
+
+        function validateDates() {
+            if (!dateStart || !dateEnd) return;
+            if (dateStart.value && dateEnd.value) {
+                if (dateStart.value > dateEnd.value) {
+                    dateEnd.value = dateStart.value;
+                }
+            }
+        }
+
+        function markQuickSelectorsAsStale() {
+            if (monthSelect) monthSelect.classList.add('dimmed');
+            if (yearSelect) yearSelect.classList.add('dimmed');
+            validateDates();
+        }
+
+        if (dateStart) dateStart.addEventListener('change', markQuickSelectorsAsStale);
+        if (dateEnd) dateEnd.addEventListener('change', markQuickSelectorsAsStale);
 
         // Close dropdowns when clicking outside
         document.addEventListener('click', function (e) {

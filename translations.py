@@ -92,6 +92,8 @@ TRANSLATIONS = {
         'select_year': 'Select Year',
         'reporter_name': 'Reporter Name',
         'default_reporter_name': 'John Doe',
+        'whole_year': 'Whole Year',
+        'all_time': 'All Time',
         'days': {
             'Mon': 'Mon', 'Tue': 'Tue', 'Wed': 'Wed', 'Thu': 'Thu', 'Fri': 'Fri', 'Sat': 'Sat', 'Sun': 'Sun'
         },
@@ -199,6 +201,8 @@ TRANSLATIONS = {
         'select_year': 'Jahr wählen',
         'reporter_name': 'Name des Berichters',
         'default_reporter_name': 'Felix Walger',
+        'whole_year': 'Ganzes Jahr',
+        'all_time': 'Gesamte Zeit',
         'days': {
             'Mon': 'Mo', 'Tue': 'Di', 'Wed': 'Mi', 'Thu': 'Do', 'Fri': 'Fr', 'Sat': 'Sa', 'Sun': 'So'
         },
@@ -306,6 +310,8 @@ TRANSLATIONS = {
         'select_year': 'Choisir année',
         'reporter_name': 'Nom du rapporteur',
         'default_reporter_name': 'Elouan Colybes',
+        'whole_year': 'Année complète',
+        'all_time': 'Tout l\'historique',
         'days': {
             'Mon': 'Lun', 'Tue': 'Mar', 'Wed': 'Mer', 'Thu': 'Jeu', 'Fri': 'Ven', 'Sat': 'Sam', 'Sun': 'Dim'
         },
