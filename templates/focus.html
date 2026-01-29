@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t['app_name'] }} - Focus</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+            <h1>
+                {% if task %}
+                {{ t['focus_title_task'] }} — {{ task.description }}
+                {% else %}
+                {{ t['focus_title_day'] }}
+                {% endif %}
+            </h1>
+            <a href="/dashboard/{{ session.id }}" class="btn btn-secondary">{{ t['back'] }}</a>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:space-between;">
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                    <label style="color: var(--text-secondary);">{{ t['pomodoro'] }}</label>
+                    <select id="pomodoroSelect" class="input-field" style="padding:0.4rem 0.6rem; width:auto;">
+                        <option value="off">{{ t['pomodoro_off'] }}</option>
+                        <option value="50/10">{{ t['pomodoro_50_10'] }}</option>
+                        <option value="75/15">{{ t['pomodoro_75_15'] }}</option>
+                    </select>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                    <label style="color: var(--text-secondary);">{{ t['focus_note'] }}</label>
+                    <input id="focusNote" type="text" class="input-field" style="padding:0.4rem 0.6rem; width:220px;">
+                </div>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <button class="btn" onclick="startFocus()">{{ t['start_focus'] }}</button>
+                    <button class="btn btn-secondary" id="pauseBtn" onclick="togglePause()">{{ t['pause_focus'] }}</button>
+                    <button class="btn btn-secondary" onclick="stopFocus()">{{ t['stop_focus'] }}</button>
+                </div>
+            </div>
+
+            <div style="margin-top:1.5rem; display:flex; align-items:center; gap:1rem;">
+                <div style="font-size:2rem; font-weight:600;" id="timerDisplay">00:00</div>
+                <div style="color: var(--text-secondary);" id="timerLabel"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-bottom: 1rem;">{{ t['focus_history'] }}</h3>
+            <div style="display:flex; flex-direction:column; gap:1rem;">
+                {% for row in focus_rows %}
+                <div class="focus-entry" data-date="{{ session.date.strftime('%Y-%m-%d') }}" data-focus-id="{{ row.id }}"
+                    style="border:1px solid #334155; border-radius:10px; padding:0.75rem;">
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+                        <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                            <label style="color:var(--text-secondary); font-size:0.85rem;">{{ t['start'] }}</label>
+                            <input type="text" class="input-field time-text-input focus-start-input"
+                                style="padding:0.3rem 0.5rem; min-width:80px;" placeholder="HH:MM"
+                                value="{{ row.start_time }}">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                            <label style="color:var(--text-secondary); font-size:0.85rem;">{{ t['end'] }}</label>
+                            <input type="text" class="input-field time-text-input focus-end-input"
+                                style="padding:0.3rem 0.5rem; min-width:80px;" placeholder="HH:MM"
+                                value="{{ row.end_time }}">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:0.25rem; flex:1; min-width:160px;">
+                            <label style="color:var(--text-secondary); font-size:0.85rem;">{{ t['note'] }}</label>
+                            <input type="text" class="input-field focus-note-input" style="padding:0.3rem 0.5rem;"
+                                value="{{ row.note }}">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                            <label style="color:var(--text-secondary); font-size:0.85rem;">{{ t['pomodoro'] }}</label>
+                            <select class="input-field focus-pomodoro-select" style="padding:0.3rem 0.5rem; min-width:80px;">
+                                <option value="off">{{ t['pomodoro_off'] }}</option>
+                                <option value="50/10" {% if row.pomodoro == '50/10' %}selected{% endif %}>{{ t['pomodoro_50_10'] }}</option>
+                                <option value="75/15" {% if row.pomodoro == '75/15' %}selected{% endif %}>{{ t['pomodoro_75_15'] }}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-top:0.5rem; color:var(--text-secondary); align-items:center;">
+                        <div>{{ t['focus_work'] }}: <strong style="color:var(--text-primary);">{{ row.work }}</strong></div>
+                        <div style="display:flex; align-items:center; gap:0.4rem;">
+                            {{ t['focus_pause'] }}:
+                            <input type="text" class="input-field time-text-input focus-pause-total"
+                                style="padding:0.2rem 0.4rem; min-width:60px; width:70px;" placeholder="MM:SS"
+                                value="{{ row.pause_total }}">
+                        </div>
+                        <div>{{ t['focus_total'] }}: <strong style="color:var(--text-primary);">{{ row.total }}</strong></div>
+                    </div>
+
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.5rem;">
+                        <button type="button" class="btn btn-secondary" style="padding:0.25rem 0.7rem;"
+                            onclick="deleteFocusRow({{ row.id }})">{{ t['focus_delete'] }}</button>
+                    </div>
+
+                </div>
+                {% else %}
+                <div style="text-align:center; padding: 1.5rem;">-</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SESSION_ID = {{ session.id }};
+        const TASK_ID = {{ task.id if task else 'null' }};
+        const ACTIVE_FOCUS_ID = {{ active_focus.id if active_focus else 'null' }};
+        const ACTIVE_PAUSE = {{ 'true' if active_focus and active_focus.active_pause else 'false' }};
+        const ACTIVE_POMODORO = {{ (active_focus.pomodoro if active_focus else '') | tojson }};
+        const ACTIVE_NOTE = {{ (active_focus.note if active_focus else '') | tojson }};
+        const ACTIVE_START_ISO = {{ (active_focus.start_iso if active_focus else '') | tojson }};
+        const ACTIVE_PAUSE_SECONDS = {{ active_focus.pause_seconds if active_focus else 0 }};
+
+        let timerInterval = null;
+        let pausedAt = ACTIVE_PAUSE ? Date.now() : null;
+        const activeStart = ACTIVE_START_ISO ? new Date(ACTIVE_START_ISO) : null;
+
+        function parsePomodoro(value) {
+            if (!value || value === 'off') return null;
+            const parts = value.split('/');
+            if (parts.length !== 2) return null;
+            const work = parseInt(parts[0], 10);
+            const rest = parseInt(parts[1], 10);
+            if (isNaN(work) || isNaN(rest)) return null;
+            return { work, rest };
+        }
+
+        function updateTimerDisplay(totalSeconds) {
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            document.getElementById('timerDisplay').textContent =
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function requestNotificationPermission() {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        }
+
+        function notifyUser(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, { body });
+            } else {
+                alert(body);
+            }
+        }
+
+        function getPausedSeconds() {
+            if (!ACTIVE_PAUSE || !pausedAt) return ACTIVE_PAUSE_SECONDS;
+            return ACTIVE_PAUSE_SECONDS + Math.floor((Date.now() - pausedAt) / 1000);
+        }
+
+        function startLiveCounter() {
+            if (!activeStart) {
+                updateTimerDisplay(0);
+                return;
+            }
+            stopTimer();
+            timerInterval = setInterval(() => {
+                const elapsed = Math.max(0, Math.floor((Date.now() - activeStart) / 1000) - getPausedSeconds());
+                updateTimerDisplay(elapsed);
+                // Pomodoro break notification
+                if (ACTIVE_POMODORO) {
+                    const config = parsePomodoro(ACTIVE_POMODORO);
+                    if (config && elapsed === (config.work * 60)) {
+                        notifyUser('Pomodoro', `Break time: ${config.rest} min`);
+                    }
+                }
+            }, 1000);
+        }
+
+        async function startFocus() {
+            const pomodoro = document.getElementById('pomodoroSelect').value;
+            const note = document.getElementById('focusNote').value.trim();
+            const res = await fetch('/api/focus/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: SESSION_ID,
+                    task_id: TASK_ID,
+                    pomodoro_mode: pomodoro !== 'off' ? pomodoro : null,
+                    note: note || null
+                })
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to start focus');
+            }
+        }
+
+        async function stopFocus() {
+            if (!ACTIVE_FOCUS_ID) return;
+            const res = await fetch('/api/focus/stop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ focus_session_id: ACTIVE_FOCUS_ID })
+            });
+            if (res.ok) {
+                stopTimer();
+                window.location.reload();
+            } else {
+                alert('Failed to stop focus');
+            }
+        }
+
+        async function togglePause() {
+            if (!ACTIVE_FOCUS_ID) return;
+            const endpoint = ACTIVE_PAUSE ? '/api/focus/pause/end' : '/api/focus/pause/start';
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ focus_session_id: ACTIVE_FOCUS_ID })
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                alert('Failed to toggle pause');
+            }
+        }
+
+        function initFocusUi() {
+            requestNotificationPermission();
+            if (ACTIVE_POMODORO) {
+                document.getElementById('pomodoroSelect').value = ACTIVE_POMODORO;
+            }
+            if (ACTIVE_NOTE) {
+                document.getElementById('focusNote').value = ACTIVE_NOTE;
+            }
+            if (ACTIVE_PAUSE) {
+                document.getElementById('pauseBtn').textContent = "{{ t['resume_focus'] }}";
+            }
+            if (ACTIVE_POMODORO) {
+                const config = parsePomodoro(ACTIVE_POMODORO);
+                if (config) {
+                    document.getElementById('timerLabel').textContent = `${config.work} min`;
+                }
+            }
+            startLiveCounter();
+        }
+
+        function normalizeTimeInput(value) {
+            if (!value) return null;
+            const trimmed = value.trim();
+            const onlyHours = trimmed.match(/^([01]?\d|2[0-3])$/);
+            if (onlyHours) {
+                const h = onlyHours[1].padStart(2, '0');
+                return `${h}:00`;
+            }
+            const withColon = trimmed.match(/^([01]?\d|2[0-3]):([0-5]?\d)$/);
+            if (withColon) {
+                const h = withColon[1].padStart(2, '0');
+                const m = withColon[2].padStart(2, '0');
+                return `${h}:${m}`;
+            }
+            return null;
+        }
+
+        function normalizeDurationInput(value) {
+            if (!value) return null;
+            const trimmed = value.trim();
+            const minutesOnly = trimmed.match(/^\d+$/);
+            if (minutesOnly) {
+                const m = minutesOnly[0].padStart(2, '0');
+                return `00:${m}:00`;
+            }
+            const mmss = trimmed.match(/^(\d{1,2}):([0-5]?\d)$/);
+            if (mmss) {
+                const m = mmss[1].padStart(2, '0');
+                const s = mmss[2].padStart(2, '0');
+                return `00:${m}:${s}`;
+            }
+            const hhmmss = trimmed.match(/^(\d{1,2}):([0-5]?\d):([0-5]?\d)$/);
+            if (hhmmss) {
+                const h = hhmmss[1].padStart(2, '0');
+                const m = hhmmss[2].padStart(2, '0');
+                const s = hhmmss[3].padStart(2, '0');
+                return `${h}:${m}:${s}`;
+            }
+            return null;
+        }
+
+        async function saveFocusPauseTotal(row) {
+            const focusId = row.getAttribute('data-focus-id');
+            const input = row.querySelector('.focus-pause-total');
+            const duration = normalizeDurationInput(input.value);
+            if (duration) input.value = duration;
+
+            const res = await fetch('/api/focus/pause_total', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    focus_session_id: focusId,
+                    duration: duration
+                })
+            });
+
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to save');
+            }
+        }
+
+        async function saveFocusRow(row) {
+            const focusId = row.getAttribute('data-focus-id');
+            const inputs = row.querySelectorAll('input, select');
+            const rowDate = row.getAttribute('data-date');
+            const startTime = normalizeTimeInput(inputs[0].value);
+            const endTime = normalizeTimeInput(inputs[1].value);
+            const note = inputs[2].value;
+            const pomodoro = inputs[3].value;
+
+            if (startTime) inputs[0].value = startTime;
+            if (endTime) inputs[1].value = endTime;
+
+            const res = await fetch('/api/focus/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    focus_session_id: focusId,
+                    start_date: rowDate,
+                    start_time: startTime,
+                    end_date: rowDate,
+                    end_time: endTime,
+                    note,
+                    pomodoro_mode: pomodoro
+                })
+            });
+
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to save');
+            }
+        }
+
+        async function deleteFocusRow(focusId) {
+            if (!confirm('{{ t["confirm_delete"] }}')) return;
+            const res = await fetch('/api/focus/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ focus_session_id: focusId })
+            });
+            if (res.ok) {
+                window.location.reload();
+            } else {
+                alert('Failed to delete');
+            }
+        }
+
+        function wireAutoSave() {
+            document.querySelectorAll('.focus-entry').forEach(row => {
+                const inputs = row.querySelectorAll('.focus-start-input, .focus-end-input, .focus-note-input');
+                const select = row.querySelector('.focus-pomodoro-select');
+                const pauseInput = row.querySelector('.focus-pause-total');
+
+                inputs.forEach(input => {
+                    input.addEventListener('blur', () => saveFocusRow(row));
+                });
+                if (select) {
+                    select.addEventListener('change', () => saveFocusRow(row));
+                }
+                if (pauseInput) {
+                    pauseInput.addEventListener('blur', () => saveFocusPauseTotal(row));
+                }
+            });
+        }
+
+        initFocusUi();
+        wireAutoSave();
+    </script>
+</body>
+
+</html>

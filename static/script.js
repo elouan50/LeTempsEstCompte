@@ -33,13 +33,15 @@ async function addTask() {
             const li = document.createElement('li');
             li.className = 'task-item';
             li.dataset.id = task.id;
-            li.innerHTML = `
-                <div class="checkbox" onclick="toggleTask('${task.id}')"></div>
-                <span class="task-text" contenteditable="true" 
-                    onblur="updateTaskDescription('${task.id}', this.innerText)">${task.description}</span>
-                <button onclick="deleteTask('${task.id}')" class="btn btn-secondary" 
-                    style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: auto;">✕</button>
-            `;
+        li.innerHTML = `
+            <div class="checkbox" onclick="toggleTask('${task.id}')"></div>
+            <span class="task-text" contenteditable="true" 
+                onblur="updateTaskDescription('${task.id}', this.innerText)">${task.description}</span>
+            <a href="/focus/task/${task.id}" class="btn btn-secondary"
+                style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: 0.5rem;">${(typeof i18n !== 'undefined' && i18n.focus) ? i18n.focus : 'Focus'}</a>
+            <button onclick="deleteTask('${task.id}')" class="btn btn-secondary" 
+                style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: auto;">✕</button>
+        `;
             list.appendChild(li);
         }
     }

@@ -73,7 +73,12 @@
         </div>
 
         <div class="card">
-            <h3 style="margin-bottom: 1.5rem;">{{ t['tasks'] }}</h3>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 1.5rem;">
+                <h3>{{ t['tasks'] }}</h3>
+                <a href="/focus/day/{{ session.id }}" class="btn btn-secondary" style="padding:0.4rem 0.8rem;">
+                    {{ t['focus_pomodoro'] }}
+                </a>
+            </div>
 
             <div class="input-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
                 <input type="text" id="newTaskInput" class="input-field" placeholder="{{ t['add_new_task'] }}"
@@ -87,6 +92,8 @@
                     <div class="checkbox" onclick="toggleTask('{{ task.id }}')"></div>
                     <span class="task-text" contenteditable="true"
                         onblur="updateTaskDescription('{{ task.id }}', this.innerText)">{{ task.description }}</span>
+                    <a href="/focus/task/{{ task.id }}" class="btn btn-secondary"
+                        style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: 0.5rem;">{{ t['focus'] }}</a>
                     <button onclick="deleteTask('{{ task.id }}')" class="btn btn-secondary"
                         style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: auto;">✕</button>
                 </li>

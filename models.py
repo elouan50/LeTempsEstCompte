@@ -25,3 +25,20 @@ class Pause(db.Model):
     session_id = db.Column(db.Integer, db.ForeignKey('daily_session.id'), nullable=False)
     start_time = db.Column(db.DateTime, nullable=True)
     end_time = db.Column(db.DateTime, nullable=True)
+
+class FocusSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('daily_session.id'), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    start_time = db.Column(db.DateTime, default=datetime.now)
+    end_time = db.Column(db.DateTime, nullable=True)
+    pomodoro_mode = db.Column(db.String(10), nullable=True)  # "50/10" or "75/15"
+    note = db.Column(db.String(200), nullable=True)
+
+    pauses = db.relationship('FocusPause', backref='focus_session', lazy=True, cascade='all, delete-orphan', order_by='FocusPause.start_time')
+
+class FocusPause(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    focus_session_id = db.Column(db.Integer, db.ForeignKey('focus_session.id'), nullable=False)
+    start_time = db.Column(db.DateTime, nullable=True)
+    end_time = db.Column(db.DateTime, nullable=True)

@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file
-from models import db, DailySession, Task, Pause
+from models import db, DailySession, Task, Pause, FocusSession, FocusPause
 from datetime import datetime, timedelta, date
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -112,6 +112,123 @@ def dashboard(session_id):
     session = DailySession.query.get_or_404(session_id)
     return render_template('dashboard.html', session=session)
 
+@app.route('/focus/task/<int:task_id>')
+def focus_task(task_id):
+    task = db.session.get(Task, task_id)
+    if not task:
+        return redirect(url_for('index'))
+    session = db.session.get(DailySession, task.session_id)
+    focus_sessions = FocusSession.query.filter_by(task_id=task_id).order_by(FocusSession.start_time.desc()).all()
+    focus_rows = []
+    active_focus = None
+    for fs in focus_sessions:
+        pause_seconds = 0
+        active_pause = False
+        for p in fs.pauses:
+            if p.start_time and p.end_time:
+                pause_seconds += int((p.end_time - p.start_time).total_seconds())
+            elif p.start_time:
+                pause_seconds += int((datetime.now() - p.start_time).total_seconds())
+                active_pause = True
+
+        if fs.start_time and fs.end_time:
+            total_seconds = int((fs.end_time - fs.start_time).total_seconds())
+        elif fs.start_time:
+            total_seconds = int((datetime.now() - fs.start_time).total_seconds())
+        else:
+            total_seconds = 0
+        work_seconds = max(total_seconds - pause_seconds, 0)
+        if fs.end_time is None and active_focus is None:
+            active_focus = {
+                "id": fs.id,
+                "start_iso": fs.start_time.isoformat() if fs.start_time else "",
+                "pomodoro": fs.pomodoro_mode or "",
+                "note": fs.note or "",
+                "pause_seconds": pause_seconds,
+                "active_pause": active_pause
+            }
+        focus_rows.append({
+            "id": fs.id,
+            "start": fs.start_time,
+            "end": fs.end_time,
+            "pomodoro": fs.pomodoro_mode or "",
+            "note": fs.note or "",
+            "start_date": fs.start_time.strftime('%Y-%m-%d') if fs.start_time else "",
+            "start_time": fs.start_time.strftime('%H:%M') if fs.start_time else "",
+            "end_date": fs.end_time.strftime('%Y-%m-%d') if fs.end_time else "",
+            "end_time": fs.end_time.strftime('%H:%M') if fs.end_time else "",
+            "pauses": [{
+                "id": p.id,
+                "duration": format_seconds(
+                    int((p.end_time - p.start_time).total_seconds()) if p.start_time and p.end_time else 0
+                )
+            } for p in fs.pauses],
+            "work": format_seconds(work_seconds),
+            "pause": format_seconds(pause_seconds),
+            "pause_total": format_seconds(pause_seconds),
+            "total": format_seconds(total_seconds),
+            "active": fs.end_time is None,
+            "active_pause": active_pause
+        })
+    return render_template('focus.html', session=session, task=task, focus_rows=focus_rows, mode="task", active_focus=active_focus)
+
+@app.route('/focus/day/<int:session_id>')
+def focus_day(session_id):
+    session = DailySession.query.get_or_404(session_id)
+    focus_sessions = FocusSession.query.filter_by(session_id=session_id, task_id=None).order_by(FocusSession.start_time.desc()).all()
+    focus_rows = []
+    active_focus = None
+    for fs in focus_sessions:
+        pause_seconds = 0
+        active_pause = False
+        for p in fs.pauses:
+            if p.start_time and p.end_time:
+                pause_seconds += int((p.end_time - p.start_time).total_seconds())
+            elif p.start_time:
+                pause_seconds += int((datetime.now() - p.start_time).total_seconds())
+                active_pause = True
+
+        if fs.start_time and fs.end_time:
+            total_seconds = int((fs.end_time - fs.start_time).total_seconds())
+        elif fs.start_time:
+            total_seconds = int((datetime.now() - fs.start_time).total_seconds())
+        else:
+            total_seconds = 0
+        work_seconds = max(total_seconds - pause_seconds, 0)
+        if fs.end_time is None and active_focus is None:
+            active_focus = {
+                "id": fs.id,
+                "start_iso": fs.start_time.isoformat() if fs.start_time else "",
+                "pomodoro": fs.pomodoro_mode or "",
+                "note": fs.note or "",
+                "pause_seconds": pause_seconds,
+                "active_pause": active_pause
+            }
+        focus_rows.append({
+            "id": fs.id,
+            "start": fs.start_time,
+            "end": fs.end_time,
+            "pomodoro": fs.pomodoro_mode or "",
+            "note": fs.note or "",
+            "start_date": fs.start_time.strftime('%Y-%m-%d') if fs.start_time else "",
+            "start_time": fs.start_time.strftime('%H:%M') if fs.start_time else "",
+            "end_date": fs.end_time.strftime('%Y-%m-%d') if fs.end_time else "",
+            "end_time": fs.end_time.strftime('%H:%M') if fs.end_time else "",
+            "pauses": [{
+                "id": p.id,
+                "duration": format_seconds(
+                    int((p.end_time - p.start_time).total_seconds()) if p.start_time and p.end_time else 0
+                )
+            } for p in fs.pauses],
+            "work": format_seconds(work_seconds),
+            "pause": format_seconds(pause_seconds),
+            "pause_total": format_seconds(pause_seconds),
+            "total": format_seconds(total_seconds),
+            "active": fs.end_time is None,
+            "active_pause": active_pause
+        })
+    return render_template('focus.html', session=session, task=None, focus_rows=focus_rows, mode="day", active_focus=active_focus)
+
 @app.route('/api/task/add', methods=['POST'])
 def add_task():
     data = request.json
@@ -220,6 +337,177 @@ def delete_pause():
         return jsonify({'error': 'Pause not found'}), 404
     
     db.session.delete(pause)
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/focus/start', methods=['POST'])
+def start_focus():
+    data = request.json
+    session_id = data.get('session_id')
+    task_id = data.get('task_id')
+    pomodoro_mode = data.get('pomodoro_mode')
+    note = data.get('note')
+
+    if not session_id:
+        return jsonify({'error': 'Missing session_id'}), 400
+
+    active = FocusSession.query.filter_by(session_id=session_id, task_id=task_id, end_time=None).first()
+    if active:
+        return jsonify({'error': 'Focus session already active', 'focus_session_id': active.id}), 409
+
+    focus = FocusSession(session_id=session_id, task_id=task_id, pomodoro_mode=pomodoro_mode, note=note)
+    db.session.add(focus)
+    db.session.commit()
+    return jsonify({'status': 'success', 'focus_session_id': focus.id})
+
+@app.route('/api/focus/stop', methods=['POST'])
+def stop_focus():
+    data = request.json
+    focus_session_id = data.get('focus_session_id')
+
+    focus = db.session.get(FocusSession, focus_session_id)
+    if not focus:
+        return jsonify({'error': 'Focus session not found'}), 404
+
+    open_pause = FocusPause.query.filter_by(focus_session_id=focus.id, end_time=None).first()
+    if open_pause:
+        open_pause.end_time = datetime.now()
+
+    focus.end_time = datetime.now()
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/focus/pause/start', methods=['POST'])
+def start_focus_pause():
+    data = request.json
+    focus_session_id = data.get('focus_session_id')
+    focus = db.session.get(FocusSession, focus_session_id)
+    if not focus:
+        return jsonify({'error': 'Focus session not found'}), 404
+
+    open_pause = FocusPause.query.filter_by(focus_session_id=focus.id, end_time=None).first()
+    if open_pause:
+        return jsonify({'error': 'Pause already active', 'pause_id': open_pause.id}), 409
+
+    pause = FocusPause(focus_session_id=focus.id, start_time=datetime.now())
+    db.session.add(pause)
+    db.session.commit()
+    return jsonify({'status': 'success', 'pause_id': pause.id})
+
+@app.route('/api/focus/pause/end', methods=['POST'])
+def end_focus_pause():
+    data = request.json
+    focus_session_id = data.get('focus_session_id')
+    focus = db.session.get(FocusSession, focus_session_id)
+    if not focus:
+        return jsonify({'error': 'Focus session not found'}), 404
+
+    open_pause = FocusPause.query.filter_by(focus_session_id=focus.id, end_time=None).first()
+    if not open_pause:
+        return jsonify({'error': 'No active pause'}), 404
+
+    open_pause.end_time = datetime.now()
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/focus/pause_total', methods=['POST'])
+def update_focus_pause_total():
+    data = request.json
+    focus_session_id = data.get('focus_session_id')
+    duration = data.get('duration')
+    focus = db.session.get(FocusSession, focus_session_id)
+    if not focus:
+        return jsonify({'error': 'Focus session not found'}), 404
+
+    seconds = parse_duration_to_seconds(duration)
+    if seconds is None:
+        return jsonify({'error': 'Invalid duration'}), 400
+
+    # Replace pauses with a single aggregate pause
+    for p in list(focus.pauses):
+        db.session.delete(p)
+
+    if seconds > 0:
+        base_time = focus.start_time if focus.start_time else datetime.now()
+        pause = FocusPause(focus_session_id=focus.id, start_time=base_time, end_time=base_time + timedelta(seconds=seconds))
+        db.session.add(pause)
+
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/focus/update', methods=['POST'])
+def update_focus_session():
+    data = request.json
+    focus_session_id = data.get('focus_session_id')
+    focus = db.session.get(FocusSession, focus_session_id)
+    if not focus:
+        return jsonify({'error': 'Focus session not found'}), 404
+
+    start_date = data.get('start_date')
+    start_time = data.get('start_time')
+    end_date = data.get('end_date')
+    end_time = data.get('end_time')
+    note = data.get('note')
+    pomodoro_mode = data.get('pomodoro_mode')
+
+    if start_date and start_time:
+        parsed = parse_local_datetime(start_date, start_time)
+        if not parsed:
+            return jsonify({'error': 'Invalid start time'}), 400
+        focus.start_time = parsed
+    if end_date and end_time:
+        parsed = parse_local_datetime(end_date, end_time)
+        if not parsed:
+            return jsonify({'error': 'Invalid end time'}), 400
+        focus.end_time = parsed
+    if note is not None:
+        focus.note = note.strip() if note else None
+    if pomodoro_mode is not None:
+        focus.pomodoro_mode = pomodoro_mode if pomodoro_mode != 'off' else None
+
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/focus/pause/update', methods=['POST'])
+def update_focus_pause():
+    data = request.json
+    pause_id = data.get('pause_id')
+    pause = db.session.get(FocusPause, pause_id)
+    if not pause:
+        return jsonify({'error': 'Focus pause not found'}), 404
+
+    duration = data.get('duration')
+    seconds = parse_duration_to_seconds(duration)
+    if seconds is None:
+        return jsonify({'error': 'Invalid duration'}), 400
+
+    focus = db.session.get(FocusSession, pause.focus_session_id)
+    base_time = focus.start_time if focus and focus.start_time else datetime.now()
+    pause.start_time = base_time
+    pause.end_time = base_time + timedelta(seconds=seconds)
+
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/focus/pause/delete', methods=['POST'])
+def delete_focus_pause():
+    data = request.json
+    pause_id = data.get('pause_id')
+    pause = db.session.get(FocusPause, pause_id)
+    if not pause:
+        return jsonify({'error': 'Focus pause not found'}), 404
+    db.session.delete(pause)
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/focus/delete', methods=['POST'])
+def delete_focus_session():
+    data = request.json
+    focus_session_id = data.get('focus_session_id')
+    focus = db.session.get(FocusSession, focus_session_id)
+    if not focus:
+        return jsonify({'error': 'Focus session not found'}), 404
+    db.session.delete(focus)
     db.session.commit()
     return jsonify({'status': 'success'})
 
@@ -340,6 +628,51 @@ def sum_pause_minutes(pauses):
         if pause.start_time and pause.end_time:
             total += int((pause.end_time - pause.start_time).total_seconds() / 60)
     return total
+
+def sum_focus_pause_minutes(pauses):
+    total = 0
+    for pause in pauses:
+        if pause.start_time and pause.end_time:
+            total += int((pause.end_time - pause.start_time).total_seconds() / 60)
+    return total
+
+def format_seconds(total_seconds):
+    if total_seconds is None:
+        return "--:--:--"
+    total_seconds = max(0, int(total_seconds))
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+def parse_local_datetime(date_str, time_str):
+    if not date_str or not time_str:
+        return None
+    try:
+        return datetime.strptime(f"{date_str}T{time_str}", "%Y-%m-%dT%H:%M")
+    except ValueError:
+        return None
+
+def parse_duration_to_seconds(value):
+    if not value:
+        return None
+    parts = value.strip().split(":")
+    try:
+        if len(parts) == 1:
+            minutes = int(parts[0])
+            return minutes * 60
+        if len(parts) == 2:
+            minutes = int(parts[0])
+            seconds = int(parts[1])
+            return minutes * 60 + seconds
+        if len(parts) == 3:
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            seconds = int(parts[2])
+            return hours * 3600 + minutes * 60 + seconds
+    except ValueError:
+        return None
+    return None
 
 def add_time_report_table(pdf, rows, t):
     col_widths = [45, 65, 27, 27, 26]
