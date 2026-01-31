@@ -9,14 +9,14 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script>
-        const i18n = {{ t | tojson }};
+        const i18n = {{ t | tojson | safe }};
     </script>
-    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f172a">
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
+                navigator.serviceWorker.register("/sw.js")
                     .then(reg => console.log('Service Worker registered', reg))
                     .catch(err => console.error('Service Worker registration failed', err));
             });
@@ -26,6 +26,7 @@
 
 <body>
     <div class="container">
+
 
         <div class="dashboard-header">
             <div class="goal-display">
@@ -152,7 +153,11 @@
                 </div>
             </div>
         </div>
-        <div style="margin-top: 3rem; display: flex; justify-content: center;">
+        <div style="margin-top: 3rem; display: flex; justify-content: center; gap: 2rem;">
+            <button onclick="discardChanges()" class="btn btn-secondary"
+                style="padding: 0.75rem 2rem; font-weight: 600; border-color: var(--danger); color: var(--danger);">
+                {{ t['discard_changes'] }}
+            </button>
             <a href="/" class="btn btn-secondary" style="padding: 0.75rem 2rem; font-weight: 600;">
                 {{ t['save_return'] }}
             </a>
@@ -162,6 +167,30 @@
     <script>
         const SESSION_ID = '{{ session.id }}';
         const INITIAL_STATUS = '{{ session.status }}';
+
+        async function discardChanges() {
+            if (confirm(i18n['confirm_discard'])) {
+                try {
+                    const res = await fetch('/api/session/rollback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: parseInt(SESSION_ID) })
+                    });
+                    if (res.ok) {
+                        window.location.href = '/';
+                    } else {
+                        const err = await res.json();
+                        alert(err.error || 'Failed to rollback');
+                        window.location.href = '/';
+                    }
+                } catch (e) {
+                    console.error(e);
+                    window.location.href = '/';
+                }
+            }
+        }
+
+        // Snapshot handling confirmed server-side
 
         async function updateGoal() {
             const goalEl = document.getElementById('editableGoal');

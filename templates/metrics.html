@@ -11,15 +11,28 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <script>
-        const i18n = {{ t | tojson }};
+        const i18n = {{ t | tojson | safe }};
         const currentLang = "{{ lang }}";
+        console.log("Page Language (Server):", currentLang);
+        console.log("Cookie Language:", document.cookie.split('; ').find(row => row.startsWith('lang='))?.split('=')[1]);
+
+        // If the page is stuck in German but the cookie says something else, 
+        // it means we're hitting a bad Service Worker cache. Force a hard reload.
+        const cookieLang = document.cookie.split('; ').find(row => row.startsWith('lang='))?.split('=')[1];
+        if (cookieLang && cookieLang !== currentLang && !sessionStorage.getItem('reloaded_for_lang')) {
+            console.warn("Language mismatch detected. Forcing hard reload to bypass bad cache...");
+            sessionStorage.setItem('reloaded_for_lang', 'true');
+            window.location.reload(true);
+        } else {
+            sessionStorage.removeItem('reloaded_for_lang');
+        }
     </script>
-    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f172a">
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
+                navigator.serviceWorker.register("/sw.js")
                     .then(reg => console.log('Service Worker registered', reg))
                     .catch(err => console.error('Service Worker registration failed', err));
             });
@@ -140,7 +153,7 @@
                                 data-time="{{ session.end_time.isoformat() if session.end_time and session.status == 'work' else '' }}">
                             </td>
                             <td>
-                                {% if session.status != 'work' %}
+                                {% if session.status == 'sick' or session.status == 'vacation' %}
                                 -
                                 {% else %}
                                 {% set total_pause_mins = namespace(value=0) %}
@@ -159,8 +172,8 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% set completed_tasks = session.tasks | selectattr('is_completed', 'equalto', true) |
-                                list %}
+                                {% set completed_tasks = session.tasks|selectattr('is_completed', 'equalto', true)|list
+                                %}
                                 {% set total_tasks = session.tasks|length %}
 
                                 {% if total_tasks > 0 %}
@@ -202,7 +215,7 @@
                             <td style="overflow: visible;">
                                 <details class="action-details">
                                     <summary class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.75rem;">
-                                          <span style="font-size: 0.7rem;">▼    </span>
+                                        &nbsp;&nbsp;<span style="font-size: 0.7rem;">▼&nbsp;&nbsp;&nbsp;&nbsp;</span>
                                     </summary>
                                     <div class="action-menu-content">
                                         <button onclick="updateSession('{{ session.id }}')">{{ t['update'] }}</button>
@@ -221,7 +234,6 @@
                 </table>
             </div>
         </div>
-    </div>
     </div>
 
     <!-- Filter Modal -->
@@ -273,17 +285,9 @@
     </div>
 
     <script>
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function (e) {
-            if (!e.target.closest('.action-details')) {
-                document.querySelectorAll('.action-details[open]').forEach(el => {
-                    el.removeAttribute('open');
-                });
-            }
-        });
 
         function updateSession(id) {
-            window.location.href = `/dashboard/${id}`;
+            window.location.href = `/dashboard/${id}?edit=true`;
         }
 
         async function deleteSession(id) {
@@ -731,7 +735,7 @@
                             const index = elements[0].index;
                             const id = sessionIds[index];
                             if (id) {
-                                window.location.href = `/dashboard/${id}`;
+                                window.location.href = `/dashboard/${id}?edit=true`;
                             }
                         }
                     },

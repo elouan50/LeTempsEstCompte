@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, make_response
 from models import db, DailySession, Task, Pause, FocusSession, FocusPause
 from datetime import datetime, timedelta, date
 from fpdf import FPDF
@@ -14,6 +14,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+
+SNAPSHOTS = {}
 
 def ensure_status_column():
     try:
@@ -52,11 +54,21 @@ def set_language(lang):
 @app.route('/')
 def index():
     sessions = DailySession.query.order_by(DailySession.date.desc()).all()
-    return render_template('metrics.html', sessions=sessions) # Metrics is now Home
+    response = make_response(render_template('metrics.html', sessions=sessions))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
 
 @app.route('/new')
 def new_day_form():
     return render_template('start_day.html') # Old index content
+
+@app.route('/sw.js')
+def serve_sw():
+    return send_file('static/sw.js', mimetype='application/javascript')
+
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_file('static/manifest.json', mimetype='application/json')
 
 @app.route('/start', methods=['POST'])
 def start_day():
@@ -109,8 +121,20 @@ def start_day():
 
 @app.route('/dashboard/<int:session_id>')
 def dashboard(session_id):
-    session = DailySession.query.get_or_404(session_id)
-    return render_template('dashboard.html', session=session)
+    session_obj = DailySession.query.get_or_404(session_id)
+    
+    # Create a snapshot of the session state for rollback on every visit
+    SNAPSHOTS[session_id] = {
+        'goal': session_obj.goal,
+        'status': session_obj.status,
+        'start_time': session_obj.start_time.isoformat() if session_obj.start_time else None,
+        'end_time': session_obj.end_time.isoformat() if session_obj.end_time else None,
+        'tasks': [{'description': t.description, 'is_completed': t.is_completed} for t in session_obj.tasks],
+        'pauses': [{'start_time': p.start_time.isoformat() if p.start_time else None, 
+                    'end_time': p.end_time.isoformat() if p.end_time else None} for p in session_obj.pauses]
+    }
+        
+    return render_template('dashboard.html', session=session_obj)
 
 @app.route('/focus/task/<int:task_id>')
 def focus_task(task_id):
@@ -590,6 +614,57 @@ def update_session_status():
             db.session.delete(pause)
 
     db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/session/rollback', methods=['POST'])
+def rollback_session():
+    data = request.json
+    session_id = data.get('session_id')
+    
+    if not session_id or session_id not in SNAPSHOTS:
+        return jsonify({'error': 'No snapshot found for this session'}), 404
+        
+    snapshot = SNAPSHOTS[session_id]
+    session_obj = db.session.get(DailySession, session_id)
+    
+    if not session_obj:
+        return jsonify({'error': 'Session not found'}), 404
+        
+    # Restore main fields
+    session_obj.goal = snapshot['goal']
+    session_obj.status = snapshot['status']
+    session_obj.start_time = datetime.fromisoformat(snapshot['start_time']) if snapshot['start_time'] else None
+    session_obj.end_time = datetime.fromisoformat(snapshot['end_time']) if snapshot['end_time'] else None
+    
+    # Restore tasks
+    # Delete current tasks
+    for task in list(session_obj.tasks):
+        db.session.delete(task)
+    # Re-add from snapshot
+    for t_snap in snapshot['tasks']:
+        new_task = Task(session_id=session_id, description=t_snap['description'], is_completed=t_snap['is_completed'])
+        db.session.add(new_task)
+        
+    # Restore pauses
+    # Delete current pauses
+    for pause in list(session_obj.pauses):
+        db.session.delete(pause)
+    # Re-add from snapshot
+    for p_snap in snapshot['pauses']:
+        new_pause = Pause(session_id=session_id)
+        if p_snap['start_time']:
+            new_pause.start_time = datetime.fromisoformat(p_snap['start_time'])
+        if p_snap['end_time']:
+            new_pause.end_time = datetime.fromisoformat(p_snap['end_time'])
+        db.session.add(new_pause)
+        
+    db.session.commit()
+    
+    # Optional: remove snapshot after rollback? 
+    # Usually better to keep it in case they click it again before navigating away, 
+    # but they are redirected to / anyway.
+    del SNAPSHOTS[session_id]
+    
     return jsonify({'status': 'success'})
 
 @app.route('/api/metrics/data')
