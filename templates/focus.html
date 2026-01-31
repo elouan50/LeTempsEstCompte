@@ -8,11 +8,101 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        .timer-container {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            margin: 2rem auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .timer-svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .timer-bg {
+            fill: none;
+            stroke: #334155;
+            stroke-width: 4;
+        }
+
+        .timer-progress {
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 4;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s ease;
+            filter: drop-shadow(0 0 6px var(--accent));
+        }
+
+        .timer-text-container {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        #timerDisplay {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            margin-bottom: -0.25rem;
+        }
+
+        #timerLabel {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1rem;
+            font-weight: 500;
+        }
+
+        /* Distraction Shield */
+        .shield-dim {
+            transition: opacity 0.5s ease, filter 0.5s ease;
+        }
+
+        body.focus-active .shield-dim {
+            opacity: 0.15;
+            filter: blur(2px);
+            pointer-events: none;
+        }
+
+        body.focus-active .shield-dim:hover {
+            opacity: 0.4;
+            filter: blur(0);
+            pointer-events: auto;
+        }
+
+        .focus-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.5s ease;
+        }
+
+        body.focus-active .focus-config {
+            display: none;
+        }
+
+        body.focus-active .card {
+            border-color: transparent;
+        }
+    </style>
 </head>
 
 <body>
     <div class="container">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;"
+            class="shield-dim">
             <h1>
                 {% if task %}
                 {{ t['focus_title_task'] }} — {{ task.description }}
@@ -24,38 +114,49 @@
         </div>
 
         <div class="card">
-            <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:space-between;">
-                <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                    <label style="color: var(--text-secondary);">{{ t['pomodoro'] }}</label>
-                    <select id="pomodoroSelect" class="input-field" style="padding:0.4rem 0.6rem; width:auto;">
-                        <option value="off">{{ t['pomodoro_off'] }}</option>
-                        <option value="50/10">{{ t['pomodoro_50_10'] }}</option>
-                        <option value="75/15">{{ t['pomodoro_75_15'] }}</option>
-                    </select>
+            <div class="focus-controls">
+                <div class="focus-config" style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center;">
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <label style="color: var(--text-secondary);">{{ t['pomodoro'] }}</label>
+                        <select id="pomodoroSelect" class="input-field" style="padding:0.4rem 0.6rem; width:auto;">
+                            <option value="off">{{ t['pomodoro_off'] }}</option>
+                            <option value="50/10">{{ t['pomodoro_50_10'] }}</option>
+                            <option value="75/15">{{ t['pomodoro_75_15'] }}</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <label style="color: var(--text-secondary);">{{ t['focus_note'] }}</label>
+                        <input id="focusNote" type="text" class="input-field"
+                            style="padding:0.4rem 0.6rem; width:220px;">
+                    </div>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                    <label style="color: var(--text-secondary);">{{ t['focus_note'] }}</label>
-                    <input id="focusNote" type="text" class="input-field" style="padding:0.4rem 0.6rem; width:220px;">
-                </div>
-                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                    <button class="btn" onclick="startFocus()">{{ t['start_focus'] }}</button>
-                    <button class="btn btn-secondary" id="pauseBtn" onclick="togglePause()">{{ t['pause_focus'] }}</button>
-                    <button class="btn btn-secondary" onclick="stopFocus()">{{ t['stop_focus'] }}</button>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-left: auto;">
+                    <button class="btn" id="startBtn" onclick="startFocus()">{{ t['start_focus'] }}</button>
+                    <button class="btn btn-secondary" id="pauseBtn" onclick="togglePause()">{{ t['pause_focus']
+                        }}</button>
+                    <button class="btn btn-secondary" id="stopBtn" onclick="stopFocus()">{{ t['stop_focus'] }}</button>
                 </div>
             </div>
 
-            <div style="margin-top:1.5rem; display:flex; align-items:center; gap:1rem;">
-                <div style="font-size:2rem; font-weight:600;" id="timerDisplay">00:00</div>
-                <div style="color: var(--text-secondary);" id="timerLabel"></div>
+            <div class="timer-container">
+                <svg class="timer-svg" viewBox="0 0 100 100">
+                    <circle class="timer-bg" cx="50" cy="50" r="46" />
+                    <circle id="timerProgress" class="timer-progress" cx="50" cy="50" r="46" stroke-dasharray="290"
+                        stroke-dashoffset="290" />
+                </svg>
+                <div class="timer-text-container">
+                    <div id="timerDisplay">00:00:00</div>
+                    <div id="timerLabel"></div>
+                </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card shield-dim">
             <h3 style="margin-bottom: 1rem;">{{ t['focus_history'] }}</h3>
             <div style="display:flex; flex-direction:column; gap:1rem;">
                 {% for row in focus_rows %}
-                <div class="focus-entry" data-date="{{ session.date.strftime('%Y-%m-%d') }}" data-focus-id="{{ row.id }}"
-                    style="border:1px solid #334155; border-radius:10px; padding:0.75rem;">
+                <div class="focus-entry" data-date="{{ session.date.strftime('%Y-%m-%d') }}"
+                    data-focus-id="{{ row.id }}" style="border:1px solid #334155; border-radius:10px; padding:0.75rem;">
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                         <div style="display:flex; flex-direction:column; gap:0.25rem;">
                             <label style="color:var(--text-secondary); font-size:0.85rem;">{{ t['start'] }}</label>
@@ -76,23 +177,29 @@
                         </div>
                         <div style="display:flex; flex-direction:column; gap:0.25rem;">
                             <label style="color:var(--text-secondary); font-size:0.85rem;">{{ t['pomodoro'] }}</label>
-                            <select class="input-field focus-pomodoro-select" style="padding:0.3rem 0.5rem; min-width:80px;">
+                            <select class="input-field focus-pomodoro-select"
+                                style="padding:0.3rem 0.5rem; min-width:80px;">
                                 <option value="off">{{ t['pomodoro_off'] }}</option>
-                                <option value="50/10" {% if row.pomodoro == '50/10' %}selected{% endif %}>{{ t['pomodoro_50_10'] }}</option>
-                                <option value="75/15" {% if row.pomodoro == '75/15' %}selected{% endif %}>{{ t['pomodoro_75_15'] }}</option>
+                                <option value="50/10" {% if row.pomodoro=='50/10' %}selected{% endif %}>{{
+                                    t['pomodoro_50_10'] }}</option>
+                                <option value="75/15" {% if row.pomodoro=='75/15' %}selected{% endif %}>{{
+                                    t['pomodoro_75_15'] }}</option>
                             </select>
                         </div>
                     </div>
 
-                    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-top:0.5rem; color:var(--text-secondary); align-items:center;">
-                        <div>{{ t['focus_work'] }}: <strong style="color:var(--text-primary);">{{ row.work }}</strong></div>
+                    <div
+                        style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-top:0.5rem; color:var(--text-secondary); align-items:center;">
+                        <div>{{ t['focus_work'] }}: <strong style="color:var(--text-primary);">{{ row.work }}</strong>
+                        </div>
                         <div style="display:flex; align-items:center; gap:0.4rem;">
                             {{ t['focus_pause'] }}:
                             <input type="text" class="input-field time-text-input focus-pause-total"
                                 style="padding:0.2rem 0.4rem; min-width:60px; width:70px;" placeholder="MM:SS"
                                 value="{{ row.pause_total }}">
                         </div>
-                        <div>{{ t['focus_total'] }}: <strong style="color:var(--text-primary);">{{ row.total }}</strong></div>
+                        <div>{{ t['focus_total'] }}: <strong style="color:var(--text-primary);">{{ row.total }}</strong>
+                        </div>
                     </div>
 
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.5rem;">
@@ -138,6 +245,35 @@
             const seconds = totalSeconds % 60;
             document.getElementById('timerDisplay').textContent =
                 `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            // Update Progress Bar
+            const progressCircle = document.getElementById('timerProgress');
+            const circumference = 2 * Math.PI * 46; // r=46
+
+            if (ACTIVE_POMODORO) {
+                const config = parsePomodoro(ACTIVE_POMODORO);
+                if (config) {
+                    const targetSeconds = config.work * 60;
+                    const percentage = Math.min(totalSeconds / targetSeconds, 1);
+                    const offset = circumference - (percentage * circumference);
+                    progressCircle.style.strokeDasharray = circumference;
+                    progressCircle.style.strokeDashoffset = offset;
+
+                    // Change color if over time?
+                    if (totalSeconds >= targetSeconds) {
+                        progressCircle.style.stroke = 'var(--success)';
+                    } else {
+                        progressCircle.style.stroke = 'var(--accent)';
+                    }
+                }
+            } else {
+                // If no pomodoro, maybe just a slow circular pulse or 1-hour wrap
+                const percentage = (totalSeconds % 3600) / 3600;
+                const offset = circumference - (percentage * circumference);
+                progressCircle.style.strokeDasharray = circumference;
+                progressCircle.style.strokeDashoffset = offset;
+                progressCircle.style.stroke = 'var(--accent)';
+            }
         }
 
         function stopTimer() {
@@ -247,6 +383,10 @@
             }
             if (ACTIVE_PAUSE) {
                 document.getElementById('pauseBtn').textContent = "{{ t['resume_focus'] }}";
+            }
+            if (ACTIVE_FOCUS_ID) {
+                document.body.classList.add('focus-active');
+                document.getElementById('startBtn').style.display = 'none';
             }
             if (ACTIVE_POMODORO) {
                 const config = parsePomodoro(ACTIVE_POMODORO);
