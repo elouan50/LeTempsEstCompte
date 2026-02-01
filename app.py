@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, make_response
-from models import db, DailySession, Task, Pause, FocusSession, FocusPause
+from models import db, DailySession, Task, Pause, FocusSession, FocusPause, Tag
 from datetime import datetime, timedelta, date
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -62,13 +62,7 @@ def index():
 def new_day_form():
     return render_template('start_day.html') # Old index content
 
-@app.route('/sw.js')
-def serve_sw():
-    return send_file('static/sw.js', mimetype='application/javascript')
 
-@app.route('/manifest.json')
-def serve_manifest():
-    return send_file('static/manifest.json', mimetype='application/json')
 
 @app.route('/start', methods=['POST'])
 def start_day():
@@ -129,7 +123,7 @@ def dashboard(session_id):
         'status': session_obj.status,
         'start_time': session_obj.start_time.isoformat() if session_obj.start_time else None,
         'end_time': session_obj.end_time.isoformat() if session_obj.end_time else None,
-        'tasks': [{'description': t.description, 'is_completed': t.is_completed} for t in session_obj.tasks],
+        'tasks': [{'description': t.description, 'is_completed': t.is_completed, 'tags': [tag.name for tag in t.tags]} for t in session_obj.tasks],
         'pauses': [{'start_time': p.start_time.isoformat() if p.start_time else None, 
                     'end_time': p.end_time.isoformat() if p.end_time else None} for p in session_obj.pauses]
     }
@@ -258,14 +252,125 @@ def add_task():
     data = request.json
     session_id = data.get('session_id')
     description = data.get('description')
+    tag_name = data.get('tag')
     
     if not session_id or not description:
         return jsonify({'error': 'Missing data'}), 400
         
-    task = Task(session_id=session_id, description=description)
+    # Get max order to put new task at the end
+    max_order = db.session.query(db.func.max(Task.order)).filter_by(session_id=session_id).scalar() or 0
+    task = Task(session_id=session_id, description=description, order=max_order + 1)
+    
+    tags_list = []
+    if tag_name:
+        tag_obj = Tag.query.filter_by(name=tag_name).first()
+        if not tag_obj:
+            tag_obj = Tag(name=tag_name)
+            db.session.add(tag_obj)
+        task.tags.append(tag_obj)
+        tags_list.append({'id': tag_obj.id, 'name': tag_obj.name, 'color': tag_obj.color})
+        
     db.session.add(task)
     db.session.commit()
-    return jsonify({'id': task.id, 'description': task.description, 'is_completed': task.is_completed})
+    return jsonify({
+        'id': task.id, 
+        'description': task.description, 
+        'is_completed': task.is_completed, 
+        'tag': tag_name, # Legacy
+        'tags': tags_list,
+        'order': task.order
+    })
+
+@app.route('/api/task/reorder', methods=['POST'])
+def reorder_tasks():
+    data = request.json
+    order_data = data.get('order')  # List of {id, order}
+    
+    if not order_data:
+        return jsonify({'error': 'Missing data'}), 400
+        
+    for item in order_data:
+        task = db.session.get(Task, item['id'])
+        if task:
+            task.order = item['order']
+            
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/task/add_tag', methods=['POST'])
+def add_task_tag():
+    data = request.json
+    task_id = data.get('task_id')
+    tag_name = data.get('tag_name')
+    
+    task = db.session.get(Task, task_id)
+    if not task or not tag_name:
+        return jsonify({'error': 'Invalid data'}), 400
+        
+    tag_name = tag_name.strip()
+    tag_obj = Tag.query.filter_by(name=tag_name).first()
+    if not tag_obj:
+        tag_obj = Tag(name=tag_name)
+        db.session.add(tag_obj)
+        
+    if tag_obj not in task.tags:
+        task.tags.append(tag_obj)
+        
+    db.session.commit()
+    return jsonify({'status': 'success', 'tag': {'id': tag_obj.id, 'name': tag_obj.name, 'color': tag_obj.color}})
+
+@app.route('/api/task/remove_tag', methods=['POST'])
+def remove_task_tag():
+    data = request.json
+    task_id = data.get('task_id')
+    tag_name = data.get('tag_name')
+    
+    task = db.session.get(Task, task_id)
+    if not task or not tag_name:
+        return jsonify({'error': 'Invalid data'}), 400
+        
+    tag_obj = Tag.query.filter_by(name=tag_name).first()
+    if tag_obj and tag_obj in task.tags:
+        task.tags.remove(tag_obj)
+        db.session.commit()
+        
+    return jsonify({'status': 'success'})
+
+@app.route('/api/tags', methods=['GET'])
+def get_tags():
+    tags = Tag.query.all()
+    return jsonify([{'id': t.id, 'name': t.name, 'color': t.color} for t in tags])
+
+@app.route('/api/tag/delete', methods=['POST'])
+def delete_tag():
+    data = request.json
+    tag_id = data.get('tag_id')
+    
+    tag = db.session.get(Tag, tag_id)
+    if not tag:
+        return jsonify({'error': 'Tag not found'}), 404
+    
+    # Check if tag is in use
+    if tag.tasks:
+        return jsonify({'error': 'Tag is in use', 'in_use': True}), 400
+        
+    db.session.delete(tag)
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/tag/update_color', methods=['POST'])
+def update_tag_color():
+    data = request.json
+    tag_id = data.get('tag_id')
+    color = data.get('color') # Hex code
+    
+    tag = db.session.get(Tag, tag_id)
+    if not tag or not color:
+        return jsonify({'error': 'Invalid data'}), 400
+        
+    tag.color = color
+    db.session.commit()
+    return jsonify({'status': 'success'})
 
 @app.route('/api/task/toggle', methods=['POST'])
 def toggle_task():
@@ -285,12 +390,27 @@ def update_task():
     data = request.json
     task_id = data.get('task_id')
     description = data.get('description')
+    tag_name = data.get('tag')
     
     task = db.session.get(Task, task_id)
     if not task:
         return jsonify({'error': 'Task not found'}), 404
         
-    task.description = description.strip() if description else task.description
+    if description is not None:
+        task.description = description.strip()
+    if tag_name:
+        # Legacy support: if a tag is passed (from description parsing), ensure it's added
+        tag_name = tag_name.strip()
+        tag_obj = Tag.query.filter_by(name=tag_name).first()
+        if not tag_obj:
+            tag_obj = Tag(name=tag_name)
+            db.session.add(tag_obj)
+        
+        if tag_obj not in task.tags:
+            task.tags.append(tag_obj)
+    
+    # Note: we don't automatically remove tags here to allow multiple tags
+        
     db.session.commit()
     return jsonify({'status': 'success'})
 
@@ -643,6 +763,14 @@ def rollback_session():
     # Re-add from snapshot
     for t_snap in snapshot['tasks']:
         new_task = Task(session_id=session_id, description=t_snap['description'], is_completed=t_snap['is_completed'])
+        # Restore tags
+        if 'tags' in t_snap:
+            for tag_name in t_snap['tags']:
+                tag_obj = Tag.query.filter_by(name=tag_name).first()
+                if not tag_obj:
+                    tag_obj = Tag(name=tag_name)
+                    db.session.add(tag_obj)
+                new_task.tags.append(tag_obj)
         db.session.add(new_task)
         
     # Restore pauses
@@ -679,13 +807,34 @@ def metrics_data():
                 'start_time': p.start_time.isoformat() if p.start_time else None,
                 'end_time': p.end_time.isoformat() if p.end_time else None
             })
+        
+        focus_data = []
+        for fs in FocusSession.query.filter_by(session_id=s.id).all():
+            task = db.session.get(Task, fs.task_id) if fs.task_id else None
+            # Use first tag for metric breakdown for now
+            tag = task.tags[0].name if task and task.tags else None
+            
+            # Calculate duration in minutes
+            duration = 0
+            if fs.start_time and fs.end_time:
+                duration = (fs.end_time - fs.start_time).total_seconds() / 60
+                # Subtract pauses during this focus session
+                pause_mins = sum_focus_pause_minutes(fs.pauses)
+                duration = max(duration - pause_mins, 0)
+                
+            focus_data.append({
+                'tag': tag,
+                'duration': duration
+            })
+            
         data.append({
             'id': s.id,
             'date': s.date.isoformat(),
             'status': s.status,
             'start_time': s.start_time.isoformat() if s.start_time and s.status == 'work' else None,
             'end_time': s.end_time.isoformat() if s.end_time and s.status == 'work' else None,
-            'pauses': pauses_data
+            'pauses': pauses_data,
+            'focus_sessions': focus_data
         })
     return jsonify(data)
 
@@ -939,7 +1088,12 @@ def reports_pdf():
             elif session.status == "vacation":
                 task_texts = [trans['urlaub']]
             else:
-                task_texts = [task.description for task in session.tasks]
+                task_texts = []
+                for task in session.tasks:
+                    text = task.description
+                    if task.tag:
+                        text = f"[{task.tag}] {text}"
+                    task_texts.append(text)
             
             day_name = trans['days'][session.date.strftime('%a')]
             date_display = f"{day_name} {session.date.strftime('%d.%m.%Y')}"

@@ -422,6 +422,147 @@ h3 {
     /* Orange */
 }
 
+/* Tag Pills */
+/* Tag Pills */
+/* Tag Pills */
+.tag-pill {
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    /* Pill shape */
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: default;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: transparent;
+    border: 1px solid currentColor;
+    /* Use text color for border */
+}
+
+.tag-remove-btn {
+    cursor: pointer;
+    margin-left: 0.1rem;
+    opacity: 0.5;
+    font-size: 1.1em;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    transition: opacity 0.2s;
+}
+
+.tag-remove-btn:hover {
+    opacity: 1;
+}
+
+.tag-color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+    border: 1px solid currentColor;
+    /* Outer ring */
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-sizing: border-box;
+}
+
+/* The inner dot */
+.tag-color-dot::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    display: block;
+}
+
+.tag-text {
+    cursor: pointer;
+}
+
+/* Custom Color Picker Popup */
+.color-picker-popup {
+    position: absolute;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 100;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+    width: max-content;
+}
+
+.color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    transition: transform 0.1s;
+}
+
+.color-swatch:hover {
+    transform: scale(1.2);
+}
+
+.tag-menu {
+    position: absolute;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+    min-width: 150px;
+}
+
+.tag-menu input {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    background: var(--bg);
+    color: var(--text-primary);
+}
+
+.tag-menu-item {
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-primary);
+}
+
+.tag-menu-item:hover {
+    background: var(--hover);
+}
+
+.add-tag-btn {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    line-height: normal;
+    margin-right: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    height: auto;
+}
+
 /* Modal Styles */
 .modal-overlay {
     position: fixed;

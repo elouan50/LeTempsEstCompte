@@ -6,22 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ t['app_name'] }} - Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ range(1, 10000) | random }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
         const i18n = {{ t | tojson | safe }};
     </script>
-    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f172a">
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register("/sw.js")
-                    .then(reg => console.log('Service Worker registered', reg))
-                    .catch(err => console.error('Service Worker registration failed', err));
-            });
-        }
-    </script>
+
 </head>
 
 <body>
@@ -90,13 +82,43 @@
             <ul id="taskList" class="task-list">
                 {% for task in session.tasks %}
                 <li class="task-item {% if task.is_completed %}completed{% endif %}" data-id="{{ task.id }}">
+                    <div class="drag-handle"
+                        style="cursor: grab; color: var(--text-secondary); margin-right: 0.5rem; display: flex; align-items: center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="9" cy="12" r="1" />
+                            <circle cx="9" cy="5" r="1" />
+                            <circle cx="9" cy="19" r="1" />
+                            <circle cx="15" cy="12" r="1" />
+                            <circle cx="15" cy="5" r="1" />
+                            <circle cx="15" cy="19" r="1" />
+                        </svg>
+                    </div>
                     <div class="checkbox" onclick="toggleTask('{{ task.id }}')"></div>
-                    <span class="task-text" contenteditable="true"
-                        onblur="updateTaskDescription('{{ task.id }}', this.innerText)">{{ task.description }}</span>
+                    <div style="flex: 1; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <span class="task-text" contenteditable="true"
+                            onblur="updateTaskDescription('{{ task.id }}', this.innerText)" style="flex: 1;">{{
+                            task.description }}</span>
+                        <div id="tags-{{ task.id }}" style="display:flex; gap:0.25rem; align-items:center;">
+                            {% for tag in task.tags %}
+                            <span class="tag-pill" style="color: {{ tag.color }};">
+                                <span class="tag-color-dot" style="color: {{ tag.color }};"
+                                    onclick="showColorPicker(event, '{{ tag.id }}')"></span>
+                                <span class="tag-text">{{ tag.name }}</span>
+                                <span class="tag-remove-btn"
+                                    onclick="removeTag('{{ task.id }}', '{{ tag.name }}')">×</span>
+                            </span>
+                            {% endfor %}
+                            <button class="btn btn-secondary btn-sm add-tag-btn"
+                                onclick="showTagMenu(this, '{{ task.id }}')">
+                                <span style="margin-right: 2px;">+</span> Tag
+                            </button>
+                        </div>
+                    </div>
                     <a href="/focus/task/{{ task.id }}" class="btn btn-secondary"
-                        style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: 0.5rem;">{{ t['focus'] }}</a>
+                        style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: auto;">{{ t['focus'] }}</a>
                     <button onclick="deleteTask('{{ task.id }}')" class="btn btn-secondary"
-                        style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: auto;">✕</button>
+                        style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-left: 0.5rem;">✕</button>
                 </li>
                 {% endfor %}
             </ul>
@@ -195,7 +217,6 @@
         async function updateGoal() {
             const goalEl = document.getElementById('editableGoal');
             const newGoal = goalEl.innerText.trim();
-
             const originalColor = goalEl.style.color;
 
             try {
@@ -207,7 +228,7 @@
 
                 if (res.ok) {
                     goalEl.style.color = 'var(--success)';
-                    setTimeout(() => goalEl.style.color = '', 1000); // Reset after 1s
+                    setTimeout(() => goalEl.style.color = '', 1000);
                 } else {
                     alert(i18n['failed_update_goal']);
                 }
@@ -216,14 +237,49 @@
             }
         }
 
+        // Initialize Sortable
+        const taskListEl = document.getElementById('taskList');
+        if (taskListEl) {
+            new Sortable(taskListEl, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                onEnd: async function () {
+                    const items = taskListEl.querySelectorAll('.task-item');
+                    const orderData = Array.from(items).map((item, index) => ({
+                        id: parseInt(item.getAttribute('data-id')),
+                        order: index
+                    }));
+
+                    await fetch('/api/task/reorder', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order: orderData })
+                    });
+                }
+            });
+        }
+
         async function updateTaskDescription(taskId, newDescription) {
+            // Extract tag if present (e.g. #Work)
+            let tag = null;
+            const tagMatch = newDescription.match(/#(\w+)/);
+            if (tagMatch) {
+                tag = tagMatch[1];
+            }
+
             const res = await fetch('/api/task/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ task_id: taskId, description: newDescription })
+                body: JSON.stringify({ task_id: taskId, description: newDescription, tag: tag })
             });
 
-            if (!res.ok) {
+            if (res.ok) {
+                // If tag changed, we might want to reload to update UI pill
+                // but let's try to be smooth. If we want full smoothness we'd update DOM.
+                // For now, let's reload to ensure consistency with the pill display logic.
+                if (tagMatch) window.location.reload();
+            } else {
                 alert(i18n['failed_update_task']);
             }
         }
@@ -492,7 +548,7 @@
             }
         });
     </script>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v={{ range(1, 10000) | random }}"></script>
 </body>
 
 </html>

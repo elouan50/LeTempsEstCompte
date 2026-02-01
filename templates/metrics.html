@@ -10,11 +10,23 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        .tag-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            display: inline-block;
+            margin: 0.2rem;
+        }
+    </style>
     <script>
         const i18n = {{ t | tojson | safe }};
         const currentLang = "{{ lang }}";
-        console.log("Page Language (Server):", currentLang);
-        console.log("Cookie Language:", document.cookie.split('; ').find(row => row.startsWith('lang='))?.split('=')[1]);
+        const SESSION_ID = null;
 
         // If the page is stuck in German but the cookie says something else, 
         // it means we're hitting a bad Service Worker cache. Force a hard reload.
@@ -27,17 +39,7 @@
             sessionStorage.removeItem('reloaded_for_lang');
         }
     </script>
-    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f172a">
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register("/sw.js")
-                    .then(reg => console.log('Service Worker registered', reg))
-                    .catch(err => console.error('Service Worker registration failed', err));
-            });
-        }
-    </script>
 </head>
 
 <body>
@@ -117,7 +119,6 @@
                     <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['avg_pause'] }}</div>
                     <div id="avgPause" style="font-size: 1.5rem; font-weight: 600;">-- min</div>
                 </div>
-                <!-- Only visible in week view usually, but we calculate for all. If month/year, it's total for that period -->
                 <div id="totalHoursContainer">
                     <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['total_hours'] }}</div>
                     <div id="totalHours" style="font-size: 1.5rem; font-weight: 600;">-- h</div>
@@ -197,7 +198,7 @@
                                             {% else %}
                                             <span style="color: var(--danger); font-weight: bold;">✗</span>
                                             {% endif %}
-                                            {{ task.description }}
+                                            <span style="flex: 1;">{{ task.description }}</span>
                                         </li>
                                         {% endfor %}
                                     </ul>
@@ -359,6 +360,7 @@
         }
 
         let chartInstance = null;
+        let tagChartInstance = null;
         let allData = [];
         let currentViewDate = new Date();
         let currentViewType = 'week';
@@ -640,6 +642,68 @@
 
             renderChart(chartLabels, chartDatasetsData, chartIds, todayIndex, dayStatuses);
             computeStats(relevantData);
+            renderTagChart(relevantData);
+        }
+
+        function renderTagChart(data) {
+            const tagTotals = {};
+            data.forEach(s => {
+                if (s.focus_sessions) {
+                    s.focus_sessions.forEach(fs => {
+                        const tag = fs.tag || 'No Tag';
+                        tagTotals[tag] = (tagTotals[tag] || 0) + fs.duration;
+                    });
+                }
+            });
+
+            const labels = Object.keys(tagTotals);
+            const values = Object.values(tagTotals).map(v => (v / 60).toFixed(1)); // Convert to hours
+
+            if (tagChartInstance) tagChartInstance.destroy();
+
+            const canvas = document.getElementById('tagChart');
+            if (labels.length === 0) {
+                canvas.style.display = 'none';
+                document.getElementById('tagSummary').innerHTML = '';
+                return;
+            }
+            canvas.style.display = 'block';
+
+            const ctx = canvas.getContext('2d');
+            tagChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            '#38bdf8', '#818cf8', '#fb7185', '#34d399', '#fbbf24', '#a78bfa', '#f472b6'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#94a3b8', font: { family: 'Inter' }, padding: 10 }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+
+            // Update tag summary in stats
+            const summaryEl = document.getElementById('tagSummary');
+            summaryEl.innerHTML = '';
+            labels.forEach((label, i) => {
+                const div = document.createElement('div');
+                div.className = 'tag-badge';
+                div.textContent = `${label}: ${values[i]}h`;
+                summaryEl.appendChild(div);
+            });
         }
 
         function computeStats(data) {
@@ -694,6 +758,121 @@
             const h = Math.floor(totalWork);
             const m = Math.round((totalWork - h) * 60);
             document.getElementById('totalHours').innerText = `${h}h ${m.toString().padStart(2, '0')}min`;
+
+            // Render tag breakdown
+            renderTagBreakdown(data);
+        }
+
+
+        function renderTagBreakdown(data) {
+            // Aggregate focus time by tag
+            const tagTotals = {};
+            const tagColors = {};
+
+            console.log('Tag breakdown - input data:', data);
+
+            data.forEach(session => {
+                if (session.focus_sessions) {
+                    console.log('Focus sessions for session:', session.focus_sessions);
+                    session.focus_sessions.forEach(fs => {
+                        if (fs.tag && fs.duration > 0) {
+                            if (!tagTotals[fs.tag]) {
+                                tagTotals[fs.tag] = 0;
+                            }
+                            tagTotals[fs.tag] += fs.duration;
+                        }
+                    });
+                }
+            });
+
+            console.log('Tag totals:', tagTotals);
+
+            // Fetch tag colors from the backend
+            fetch('/api/tags')
+                .then(res => res.json())
+                .then(tags => {
+                    tags.forEach(tag => {
+                        tagColors[tag.name] = tag.color;
+                    });
+
+                    // Prepare chart data
+                    const sortedTags = Object.entries(tagTotals)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10); // Top 10 tags
+
+                    const labels = sortedTags.map(([tag, _]) => tag);
+                    const values = sortedTags.map(([_, mins]) => mins / 60); // Convert to hours
+                    const colors = labels.map(tag => tagColors[tag] || '#38bdf8');
+
+                    // Render doughnut chart
+                    const ctx = document.getElementById('tagChart').getContext('2d');
+
+                    if (tagChartInstance) {
+                        tagChartInstance.destroy();
+                    }
+
+                    if (sortedTags.length > 0) {
+                        tagChartInstance = new Chart(ctx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    data: values,
+                                    backgroundColor: colors,
+                                    borderWidth: 2,
+                                    borderColor: '#1e293b'
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                plugins: {
+                                    legend: {
+                                        display: false
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function (context) {
+                                                const hours = Math.floor(context.parsed);
+                                                const mins = Math.round((context.parsed - hours) * 60);
+                                                return `${context.label}: ${hours}h ${mins}min`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    // Render tag summary badges
+                    const tagSummary = document.getElementById('tagSummary');
+                    tagSummary.innerHTML = '';
+
+                    sortedTags.forEach(([tag, mins]) => {
+                        const hours = Math.floor(mins / 60);
+                        const minutes = Math.round(mins % 60);
+                        const color = tagColors[tag] || '#38bdf8';
+
+                        const badge = document.createElement('div');
+                        badge.style.cssText = `
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            padding: 0.5rem 1rem;
+                            border-radius: 8px;
+                            background-color: ${color}26;
+                            border: 1px solid ${color};
+                        `;
+
+                        badge.innerHTML = `
+                            <div style="font-size: 0.75rem; color: ${color}; font-weight: 600;">${tag}</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: ${color};">${hours}h ${minutes}m</div>
+                        `;
+
+                        tagSummary.appendChild(badge);
+                    });
+                })
+                .catch(err => console.error('Failed to load tag colors:', err));
         }
 
         function renderChart(labels, datasetsData, sessionIds, todayIndex, dayStatuses) {

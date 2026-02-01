@@ -132,7 +132,9 @@ TRANSLATIONS = {
         'full_months': [
             'January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'
-        ]
+        ],
+        'tag': 'Tag',
+        'activity_breakdown': 'Activity Breakdown'
     },
     'de': {
         'app_name': 'LeTempsEstCompté',
@@ -266,7 +268,9 @@ TRANSLATIONS = {
         'full_months': [
             'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
             'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
-        ]
+        ],
+        'tag': 'Tag',
+        'activity_breakdown': 'Aktivitätsaufteilung'
     },
     'fr': {
         'app_name': 'LeTempsEstCompté',
@@ -400,6 +404,8 @@ TRANSLATIONS = {
         'full_months': [
             'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
             'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-        ]
+        ],
+        'tag': 'Tag',
+        'activity_breakdown': 'Détail des activités'
     }
 }
