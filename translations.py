@@ -5,6 +5,8 @@ TRANSLATIONS = {
         'reports': 'Reports',
         'start_new_day': 'Start New Day',
         'daily_hours': 'Daily Hours',
+        'productivity_timeline': 'Productivity Timeline',
+        'day': 'Day',
         'week': 'Week',
         'month': 'Month',
         'year': 'Year',
@@ -134,13 +136,16 @@ TRANSLATIONS = {
             'July', 'August', 'September', 'October', 'November', 'December'
         ],
         'tag': 'Tag',
-        'activity_breakdown': 'Activity Breakdown'
+        'activity_breakdown': 'Activity Breakdown',
+        'untagged': 'Untagged'
     },
     'de': {
         'app_name': 'LeTempsEstCompté',
         'reports': 'Berichte',
         'start_new_day': 'Neuen Tag starten',
         'daily_hours': 'Tägliche Stunden',
+        'productivity_timeline': 'Produktivitätsverlauf',
+        'day': 'Tag',
         'week': 'Woche',
         'month': 'Monat',
         'year': 'Jahr',
@@ -270,13 +275,16 @@ TRANSLATIONS = {
             'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
         ],
         'tag': 'Tag',
-        'activity_breakdown': 'Aktivitätsaufteilung'
+        'activity_breakdown': 'Aktivitätsaufteilung',
+        'untagged': 'Ohne Tag'
     },
     'fr': {
         'app_name': 'LeTempsEstCompté',
         'reports': 'Rapports',
         'start_new_day': 'Nouvelle Journée',
         'daily_hours': 'Heures Quotidiennes',
+        'productivity_timeline': 'Chronologie de Productivité',
+        'day': 'Jour',
         'week': 'Semaine',
         'month': 'Mois',
         'year': 'Année',
@@ -406,6 +414,7 @@ TRANSLATIONS = {
             'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
         ],
         'tag': 'Tag',
-        'activity_breakdown': 'Détail des activités'
+        'activity_breakdown': 'Détail des activités',
+        'untagged': 'Sans tag'
     }
 }

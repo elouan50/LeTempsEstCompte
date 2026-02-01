@@ -17,6 +17,17 @@ db.init_app(app)
 
 SNAPSHOTS = {}
 
+def hex_to_rgb(hex_str):
+    hex_str = hex_str.lstrip('#')
+    return tuple(int(hex_str[i:i+2], 16) for i in (0, 2, 4))
+
+def pdf_safe(text):
+    """Sanitize text for FPDF Helvetica (Latin-1). Removes emojis and unsupported chars."""
+    if not text:
+        return ""
+    # Transliterate or remove characters that cannot be represented in Latin-1
+    return text.encode('latin-1', 'ignore').decode('latin-1')
+
 def ensure_status_column():
     try:
         columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(daily_session)")).all()]
@@ -822,9 +833,33 @@ def metrics_data():
                 pause_mins = sum_focus_pause_minutes(fs.pauses)
                 duration = max(duration - pause_mins, 0)
                 
+            # Calculate start and end hours for visualization
+            fs_start = 0
+            fs_end = 0
+            if fs.start_time and fs.end_time:
+                fs_start = fs.start_time.hour + fs.start_time.minute / 60
+                fs_end = fs.end_time.hour + fs.end_time.minute / 60
+                
             focus_data.append({
-                'tag': tag,
-                'duration': duration
+                'id': fs.id,
+                'task_id': fs.task_id,
+                'session_id': s.id,
+                'tags': [t.name for t in task.tags] if task and task.tags else [],
+                'task_name': task.description if task else "Focus Session",
+                'duration': duration,
+                'start_hour': fs_start,
+                'end_hour': fs_end
+            })
+            
+        # Add task data with tags
+        tasks_data = []
+        for task in s.tasks:
+            task_tags = [tag.name for tag in task.tags] if task.tags else []
+            tasks_data.append({
+                'id': task.id,
+                'description': task.description,
+                'is_completed': task.is_completed,
+                'tags': task_tags
             })
             
         data.append({
@@ -834,7 +869,8 @@ def metrics_data():
             'start_time': s.start_time.isoformat() if s.start_time and s.status == 'work' else None,
             'end_time': s.end_time.isoformat() if s.end_time and s.status == 'work' else None,
             'pauses': pauses_data,
-            'focus_sessions': focus_data
+            'focus_sessions': focus_data,
+            'tasks': tasks_data
         })
     return jsonify(data)
 
@@ -964,63 +1000,106 @@ def add_time_report_table(pdf, rows, t):
             pdf.add_page()
             render_header()
 
-def add_task_report_table(pdf, task_rows, t):
-    col_date = 45
-    col_tasks = 145
-    line_height = 6
+def add_task_report_table(pdf, day_rows, t):
+    col_width = 190
+    line_height = 7
 
-    def render_header():
-        pdf.set_fill_color(30, 41, 59)
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font("Helvetica", style="B", size=10)
-        pdf.cell(col_date, 10, t['date'], border=0, align="C", fill=True)
-        pdf.cell(col_tasks, 10, t['tasks'], border=0, align="C", fill=True)
-        pdf.ln(10)
-        pdf.set_text_color(0, 0, 0)
-
-    render_header()
-
-    if not task_rows:
+    if not day_rows:
         pdf.set_font("Helvetica", size=10)
-        pdf.cell(col_date + col_tasks, 10, "No sessions in selected period.", border=1, align="L")
+        pdf.cell(col_width, 10, "No sessions in selected period.", border=1, align="L")
         pdf.ln(10)
         return
 
     current_month = None
 
-    for idx, row in enumerate(task_rows):
-        row_date = datetime.strptime(row["date_raw"], "%Y-%m-%d")
+    for day in day_rows:
+        row_date = datetime.strptime(day["date_raw"], "%Y-%m-%d")
         row_month = row_date.strftime("%Y-%m")
+        
+        # Month Header
         if row_month != current_month:
             current_month = row_month
-            pdf.ln(2)
-            pdf.set_fill_color(241, 245, 249)
+            pdf.ln(5)
+            pdf.set_fill_color(30, 41, 59)
+            pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", style="B", size=11)
             month_name = t['full_months'][row_date.month - 1]
-            pdf.cell(col_date + col_tasks, 10, f"{month_name} {row_date.year}", border="B", align="L", fill=True)
-            pdf.ln(10)
+            pdf.cell(col_width, 10, f"{month_name} {row_date.year}", border=0, align="L", fill=True)
+            pdf.ln(12)
+            pdf.set_text_color(0, 0, 0)
 
-        tasks_text = row["tasks"] if row["tasks"] else "-"
-        tasks_lines = textwrap.wrap(tasks_text, width=80) or ["-"]
-        row_height = max(line_height * len(tasks_lines), 9)
+        # Day Header
+        pdf.set_font("Helvetica", style="B", size=10)
+        pdf.set_fill_color(241, 245, 249)
+        pdf.cell(col_width, 8, day["date_label"], border="B", align="L", fill=True)
+        pdf.ln(10)
 
-        if pdf.get_y() + row_height > 270:
-            pdf.add_page()
-            render_header()
+        if day["status"] == "sick":
+            pdf.set_font("Helvetica", style="I", size=10)
+            pdf.set_text_color(150, 0, 0)
+            pdf.cell(col_width, 8, f"  - {t['krank']}", ln=True)
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(2)
+            continue
+        elif day["status"] == "vacation":
+            pdf.set_font("Helvetica", style="I", size=10)
+            pdf.set_text_color(0, 100, 0)
+            pdf.cell(col_width, 8, f"  - {t['urlaub']}", ln=True)
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(2)
+            continue
 
-        if row.get("status") == "sick":
-            pdf.set_fill_color(245, 243, 255)
-        elif row.get("status") == "vacation":
-            pdf.set_fill_color(255, 247, 237)
-        else:
-            pdf.set_fill_color(255, 255, 255) if idx % 2 == 0 else pdf.set_fill_color(252, 252, 252)
+        if not day["groups"]:
+            pdf.set_font("Helvetica", style="I", size=9)
+            pdf.set_text_color(120, 120, 120)
+            pdf.cell(col_width, 8, "  (No tasks recorded)", ln=True)
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(2)
+            continue
 
-        x, y = pdf.get_x(), pdf.get_y()
-        pdf.set_font("Helvetica", size=10)
-        pdf.multi_cell(col_date, row_height, row["date"], border="B", align="L", fill=True)
-        pdf.set_xy(x + col_date, y)
-        pdf.multi_cell(col_tasks, line_height if len(tasks_lines) > 1 else row_height, "\n".join(tasks_lines), border="B", align="L", fill=True)
-        pdf.set_xy(x, y + row_height)
+        for group in day["groups"]:
+            # Tag Header with Color Dot
+            tag_name = group["tag_name"]
+            tag_color = group["tag_color"]
+            
+            # Check for page break
+            if pdf.get_y() > 260:
+                pdf.add_page()
+
+            # Draw Tag Indicator
+            x = pdf.get_x() + 5
+            y = pdf.get_y() + 2.5
+            r, g, b = hex_to_rgb(tag_color)
+            pdf.set_fill_color(r, g, b)
+            pdf.circle(x, y, 1.5, 'F')
+            
+            pdf.set_xy(x + 5, pdf.get_y())
+            pdf.set_font("Helvetica", style="B", size=9)
+            pdf.cell(col_width - 10, 5, group["tag_name"], ln=True)
+            pdf.ln(1)
+
+            # Tasks in this group
+            pdf.set_font("Helvetica", size=9)
+            for task in group["tasks"]:
+                if pdf.get_y() > 270:
+                    pdf.add_page()
+                
+                status_icon = "[v]" if task["completed"] else "[ ]"
+                desc = task["description"]
+                
+                pdf.set_x(x + 5)
+                # Check for wrap and height to handle page breaks
+                txt = f"{status_icon} {desc}"
+                lines = pdf.multi_cell(col_width - 15, 5, txt, border=0, align="L", split_only=True)
+                item_height = len(lines) * 5
+                if pdf.get_y() + item_height > 275:
+                    pdf.add_page()
+                    pdf.set_x(x + 5)
+                
+                pdf.multi_cell(col_width - 15, 5, txt, border=0, align="L")
+            
+            pdf.ln(2)
+        pdf.ln(2)
 
 @app.route('/reports')
 def reports():
@@ -1081,31 +1160,37 @@ def reports_pdf():
         pdf.ln(6)
         pdf.set_text_color(0, 0, 0)
 
-        task_rows = []
+        day_rows = []
         for session in sessions:
-            if session.status == "sick":
-                task_texts = [trans['krank']]
-            elif session.status == "vacation":
-                task_texts = [trans['urlaub']]
-            else:
-                task_texts = []
+            groups = {} # tag_name -> {color, tasks: []}
+            
+            if session.status == "work":
                 for task in session.tasks:
-                    text = task.description
-                    if task.tag:
-                        text = f"[{task.tag}] {text}"
-                    task_texts.append(text)
+                    tags = task.tags if task.tags else []
+                    primary_tag = tags[0] if tags else None
+                    tag_name = pdf_safe(primary_tag.name) if primary_tag else trans['untagged']
+                    tag_color = primary_tag.color if primary_tag else "#94a3b8"
+                    
+                    if tag_name not in groups:
+                        groups[tag_name] = {"tag_color": tag_color, "tasks": []}
+                    
+                    groups[tag_name]["tasks"].append({
+                        "description": pdf_safe(task.description),
+                        "completed": task.is_completed
+                    })
             
             day_name = trans['days'][session.date.strftime('%a')]
             date_display = f"{day_name} {session.date.strftime('%d.%m.%Y')}"
             
-            task_rows.append({
-                "date": date_display,
+            day_rows.append({
+                "date_label": date_display,
                 "date_raw": session.date.strftime('%Y-%m-%d'),
                 "status": session.status,
-                "tasks": "; ".join(task_texts) if task_texts else "-"
+                "groups": [{"tag_name": name, "tag_color": val["tag_color"], "tasks": val["tasks"]} for name, val in groups.items()]
             })
 
-        add_task_report_table(pdf, task_rows, trans)
+        add_task_report_table(pdf, day_rows, trans)
+
         filename = f"tasks_{start_date.isoformat()}_{end_date.isoformat()}.pdf"
 
     else:

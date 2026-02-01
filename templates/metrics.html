@@ -22,14 +22,138 @@
             display: inline-block;
             margin: 0.2rem;
         }
+
+        /* Toggle Switch Styles */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            top: 3px;
+            background-color: var(--text-primary);
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+            background-color: #fff;
+        }
+
+        input:checked+.slider {
+            background-color: var(--accent);
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .chart-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        /* Tag Tasks Popup */
+        .tag-tasks-popup {
+            position: absolute;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+            z-index: 2000;
+            min-width: 250px;
+            max-width: 320px;
+            pointer-events: none;
+            display: none;
+            backdrop-filter: blur(8px);
+            transition: opacity 0.2s ease;
+        }
+
+        .tag-tasks-popup h4 {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.95rem;
+            color: var(--accent);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tag-tasks-popup ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .tag-tasks-popup li {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .tag-tasks-popup .task-status {
+            font-size: 0.8rem;
+            font-weight: bold;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
     </style>
     <script>
         const i18n = {{ t | tojson | safe }};
         const currentLang = "{{ lang }}";
         const SESSION_ID = null;
 
-        // If the page is stuck in German but the cookie says something else, 
-        // it means we're hitting a bad Service Worker cache. Force a hard reload.
         const cookieLang = document.cookie.split('; ').find(row => row.startsWith('lang='))?.split('=')[1];
         if (cookieLang && cookieLang !== currentLang && !sessionStorage.getItem('reloaded_for_lang')) {
             console.warn("Language mismatch detected. Forcing hard reload to bypass bad cache...");
@@ -83,13 +207,27 @@
         </div>
 
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                <h1>{{ t['daily_hours'] }}</h1>
+            <div
+                style="display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 2rem;">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <label class="toggle-container" style="margin-bottom: 0.5rem;">
+                        <span>{{ t.get('show_focus_sessions', 'Focus sessions') }}</span>
+                        <div class="switch">
+                            <input type="checkbox" id="showFocusToggle" onchange="toggleFocusDisplay()">
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                </div>
                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 1rem;">
-                    <div class="chart-controls">
-                        <button class="btn btn-secondary btn-sm" onclick="switchView('week')">{{ t['week'] }}</button>
-                        <button class="btn btn-secondary btn-sm" onclick="switchView('month')">{{ t['month'] }}</button>
-                        <button class="btn btn-secondary btn-sm" onclick="switchView('year')">{{ t['year'] }}</button>
+                    <div class="chart-controls" id="viewControls">
+                        <button class="btn btn-secondary btn-sm" data-view="day" onclick="switchView('day')">{{ t['day']
+                            }}</button>
+                        <button class="btn btn-secondary btn-sm" data-view="week" onclick="switchView('week')">{{
+                            t['week'] }}</button>
+                        <button class="btn btn-secondary btn-sm" data-view="month" onclick="switchView('month')">{{
+                            t['month'] }}</button>
+                        <button class="btn btn-secondary btn-sm" data-view="year" onclick="switchView('year')">{{
+                            t['year'] }}</button>
                     </div>
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <button class="btn btn-secondary btn-sm" onclick="navigate(-1)">←</button>
@@ -101,27 +239,73 @@
                 </div>
             </div>
 
-            <div style="height: 400px; width: 100%; margin-bottom: 2rem;">
-                <canvas id="metricsChart"></canvas>
+            <div
+                style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 2rem; margin-bottom: 3rem;">
+                <!-- Main Daily Chart -->
+                <div
+                    style="height: 520px; display: flex; flex-direction: column; background: var(--bg-secondary); border-radius: 12px; padding: 1rem; border: 1px solid var(--border); min-width: 0;">
+                    <h3
+                        style="text-align: center; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                        {{ t['productivity_timeline'] }}</h3>
+                    <div style="flex: 1; min-height: 0;">
+                        <canvas id="metricsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Circular Charts side container, stacked -->
+                <div style="display: flex; flex-direction: column; gap: 20px; height: 520px;">
+                    <!-- Time Breakdown -->
+                    <div
+                        style="height: 250px; display: flex; flex-direction: column; align-items: center; min-width: 0; background: var(--bg-secondary); border-radius: 12px; padding: 1rem; border: 1px solid var(--border);">
+                        <h3
+                            style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                            {{ t.get('time_breakdown', 'Time Breakdown') }}</h3>
+                        <div
+                            style="flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; position: relative;">
+                            <canvas id="tagChartTime"></canvas>
+                            <div id="tagChartTimeEmpty"
+                                style="display: none; text-align: center; color: var(--text-secondary);">
+                                <svg viewBox="0 0 24 24"
+                                    style="width: 24px; height: 24px; fill: currentColor; opacity: 0.3; margin-bottom: 0.3rem;">
+                                    <path
+                                        d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                                </svg>
+                                <div style="font-size: 0.75rem;">{{ t.get('no_data_to_show', 'No data') }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Task Breakdown -->
+                    <div
+                        style="height: 250px; display: flex; flex-direction: column; align-items: center; min-width: 0; background: var(--bg-secondary); border-radius: 12px; padding: 1rem; border: 1px solid var(--border);">
+                        <h3
+                            style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                            {{ t.get('task_breakdown', 'Task Breakdown') }}</h3>
+                        <div
+                            style="flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; position: relative;">
+                            <canvas id="tagChartTasks"></canvas>
+                            <div id="tagChartTasksEmpty"
+                                style="display: none; text-align: center; color: var(--text-secondary);">
+                                <svg viewBox="0 0 24 24"
+                                    style="width: 24px; height: 24px; fill: currentColor; opacity: 0.3; margin-bottom: 0.3rem;">
+                                    <path
+                                        d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                                </svg>
+                                <div style="font-size: 0.75rem;">{{ t.get('no_data_to_show', 'No data') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="statsSummary"
-                style="display: flex; gap: 2rem; margin-bottom: 2rem; padding-top: 1rem; border-top: 1px solid #334155;">
-                <div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['avg_start'] }}</div>
-                    <div id="avgStart" style="font-size: 1.5rem; font-weight: 600;">--:--</div>
-                </div>
-                <div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['avg_end'] }}</div>
-                    <div id="avgEnd" style="font-size: 1.5rem; font-weight: 600;">--:--</div>
-                </div>
-                <div>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['avg_pause'] }}</div>
-                    <div id="avgPause" style="font-size: 1.5rem; font-weight: 600;">-- min</div>
-                </div>
+                style="display: flex; gap: 2rem; align-items: center; margin-bottom: 2rem; padding-top: 1rem; border-top: 1px solid #334155;">
                 <div id="totalHoursContainer">
                     <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['total_hours'] }}</div>
                     <div id="totalHours" style="font-size: 1.5rem; font-weight: 600;">-- h</div>
+                </div>
+                <div id="tagSummary" class="tag-summary-scroll"
+                    style="flex: 1; display: flex; gap: 0.75rem; flex-wrap: nowrap; justify-content: flex-start; align-items: center; overflow-x: auto; padding-bottom: 0.5rem; padding-top: 0.5rem; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--accent) transparent;">
                 </div>
             </div>
         </div>
@@ -133,7 +317,7 @@
                     {{ t['filter_search'] }}
                 </button>
             </div>
-            <div style="overflow-x: auto;">
+            <div class="session-history-scroll">
                 <table class="metrics-table">
                     <thead>
                         <tr>
@@ -168,7 +352,8 @@
                                 {% for pause in session.pauses %}
                                 {% if pause.start_time and pause.end_time %}
                                 {% set duration = pause.end_time - pause.start_time %}
-                                {% set total_pause_mins.value = total_pause_mins.value + (duration.total_seconds() / 60)
+                                {% set total_pause_mins.value = total_pause_mins.value +
+                                (duration.total_seconds() / 60)
                                 | int %}
                                 {% endif %}
                                 {% endfor %}
@@ -180,7 +365,8 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% set completed_tasks = session.tasks|selectattr('is_completed', 'equalto', true)|list
+                                {% set completed_tasks = session.tasks|selectattr('is_completed', 'equalto',
+                                true)|list
                                 %}
                                 {% set total_tasks = session.tasks|length %}
 
@@ -226,7 +412,8 @@
                                         &nbsp;&nbsp;<span style="font-size: 0.7rem;">▼&nbsp;&nbsp;&nbsp;&nbsp;</span>
                                     </summary>
                                     <div class="action-menu-content">
-                                        <button onclick="updateSession('{{ session.id }}')">{{ t['update'] }}</button>
+                                        <button onclick="updateSession('{{ session.id }}')">{{ t['update']
+                                            }}</button>
                                         <button onclick="deleteSession('{{ session.id }}')" class="text-danger">{{
                                             t['delete'] }}</button>
                                     </div>
@@ -235,7 +422,8 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="8" style="text-align: center; padding: 2rem;">{{ t['no_sessions'] }}</td>
+                            <td colspan="8" style="text-align: center; padding: 2rem;">{{ t['no_sessions'] }}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -290,6 +478,12 @@
                 <button class="btn" onclick="applyFilters()">{{ t['apply'] }}</button>
             </div>
         </div>
+    </div>
+
+    <!-- Tag Tasks Popup -->
+    <div id="tagTasksPopup" class="tag-tasks-popup">
+        <h4 id="popupTagTitle"></h4>
+        <ul id="popupTasksList"></ul>
     </div>
 
     <script>
@@ -360,10 +554,18 @@
         }
 
         let chartInstance = null;
-        let tagChartInstance = null;
+        let tagChartTimeInstance = null;
+        let tagChartTasksInstance = null;
         let allData = [];
         let currentViewDate = new Date();
-        let currentViewType = 'week';
+        let currentViewType = localStorage.getItem('metricsViewType') || 'week';
+        let showFocusSessions = localStorage.getItem('showFocusSessions') === 'true';
+
+        function toggleFocusDisplay() {
+            showFocusSessions = document.getElementById('showFocusToggle').checked;
+            localStorage.setItem('showFocusSessions', showFocusSessions);
+            renderCurrentView();
+        }
 
         function getLocalHour(isoString) {
             if (!isoString) return null;
@@ -381,7 +583,14 @@
         async function initMetrics() {
             const res = await fetch('/api/metrics/data?_=' + Date.now());
             allData = await res.json();
-            switchView('week');
+
+            // Initialize toggle state
+            const toggle = document.getElementById('showFocusToggle');
+            if (toggle) {
+                toggle.checked = showFocusSessions;
+            }
+
+            switchView(currentViewType);
         }
 
         // Helper: Get Monday of the current week
@@ -394,6 +603,24 @@
 
         function switchView(type) {
             currentViewType = type;
+            localStorage.setItem('metricsViewType', type);
+
+            // Highlight active button
+            const controls = document.getElementById('viewControls');
+            if (controls) {
+                controls.querySelectorAll('button').forEach(btn => {
+                    if (btn.getAttribute('data-view') === type) {
+                        btn.style.backgroundColor = 'var(--accent)';
+                        btn.style.borderColor = 'var(--accent)';
+                        btn.style.color = '#fff';
+                    } else {
+                        btn.style.backgroundColor = '';
+                        btn.style.borderColor = '';
+                        btn.style.color = '';
+                    }
+                });
+            }
+
             currentViewDate = new Date(); // Reset to today on view switch ?? Or keep? Usually reset is better UX here.
             renderCurrentView();
         }
@@ -405,7 +632,9 @@
 
         function navigate(offset) {
             const d = new Date(currentViewDate);
-            if (currentViewType === 'week') {
+            if (currentViewType === 'day') {
+                d.setDate(d.getDate() + offset);
+            } else if (currentViewType === 'week') {
                 d.setDate(d.getDate() + (offset * 7));
             } else if (currentViewType === 'month') {
                 d.setMonth(d.getMonth() + offset);
@@ -517,7 +746,27 @@
                 };
             };
 
-            if (currentViewType === 'week') {
+            if (currentViewType === 'day') {
+                const dateStr = currentViewDate.toISOString().split('T')[0];
+                const dayName = currentViewDate.toLocaleDateString(currentLang, { weekday: 'long' });
+                updateLabel(null, null, `${dayName} ${currentViewDate.getDate()} ${currentViewDate.toLocaleDateString(currentLang, { month: 'short', year: 'numeric' })}`);
+
+                if (currentViewDate.getFullYear() === todayY && currentViewDate.getMonth() === todayM && currentViewDate.getDate() === todayD) {
+                    todayIndex = 0;
+                }
+
+                chartLabels.push(`${dayName} ${currentViewDate.getDate()}`);
+                const entry = allData.find(x => x.date.startsWith(dateStr));
+                if (entry) {
+                    relevantData.push(entry);
+                    chartIds.push(entry.id);
+                    dayToSegments.push(getWorkSegments(entry));
+                } else {
+                    chartIds.push(null);
+                    dayToSegments.push([]);
+                }
+
+            } else if (currentViewType === 'week') {
                 const startOfWeek = getStartOfWeek(currentViewDate);
                 const endOfWeek = new Date(startOfWeek);
                 endOfWeek.setDate(endOfWeek.getDate() + 6);
@@ -640,7 +889,7 @@
                 return entry ? entry.status : 'work';
             });
 
-            renderChart(chartLabels, chartDatasetsData, chartIds, todayIndex, dayStatuses);
+            renderChart(chartLabels, chartDatasetsData, chartIds, todayIndex, dayStatuses, relevantData);
             computeStats(relevantData);
             renderTagChart(relevantData);
         }
@@ -707,9 +956,6 @@
         }
 
         function computeStats(data) {
-            let totalStart = 0, countStart = 0;
-            let totalEnd = 0, countEnd = 0;
-            let totalPause = 0, countPause = 0;
             let totalWork = 0; // Hours
 
             const now = new Date();
@@ -733,26 +979,12 @@
 
                 const pauseHours = getTotalPauseHours(d.pauses);
 
-                if (start) { totalStart += start; countStart++; }
-                // We only count actual "End" times for the "Average End" stat to avoid skewing while the day is in progress
-                if (getLocalHour(d.end_time)) { totalEnd += end; countEnd++; }
-
-                if (pauseHours > 0) { totalPause += pauseHours; countPause++; }
-
                 // Calculate worked hours for this entry
                 if (start && end) {
                     let work = end - start - pauseHours;
                     if (work > 0) totalWork += work;
                 }
             });
-
-            const avgS = countStart ? totalStart / countStart : 0;
-            const avgE = countEnd ? totalEnd / countEnd : 0;
-            const avgP = countPause ? (totalPause / countPause) * 60 : 0; // mins
-
-            document.getElementById('avgStart').innerText = countStart ? formatHour(avgS) : '--:--';
-            document.getElementById('avgEnd').innerText = countEnd ? formatHour(avgE) : '--:--';
-            document.getElementById('avgPause').innerText = countPause ? Math.round(avgP) + 'min' : '--min';
 
             // Format Total Hours
             const h = Math.floor(totalWork);
@@ -765,27 +997,85 @@
 
 
         function renderTagBreakdown(data) {
-            // Aggregate focus time by tag
-            const tagTotals = {};
+            // Aggregate focus time and task counts by tag
+            const tagTimeData = {}; // tag -> total minutes
+            const tagTaskData = {}; // tag -> {completed: count, total: count}
             const tagColors = {};
 
             console.log('Tag breakdown - input data:', data);
 
+            // Process focus sessions for time data
+            let totalPeriodFocusMinutes = 0;
+            let totalPeriodWorkedMinutes = 0;
+
+            const now = new Date();
+            const todayY = now.getFullYear();
+            const todayM = now.getMonth();
+            const todayD = now.getDate();
+
             data.forEach(session => {
+                // Calculate worked minutes for this session
+                const start = getLocalHour(session.start_time);
+                let end = getLocalHour(session.end_time);
+                if (!end && start) {
+                    const sessionDate = new Date(session.date);
+                    if (sessionDate.getFullYear() === todayY && sessionDate.getMonth() === todayM && sessionDate.getDate() === todayD) {
+                        end = now.getHours() + (now.getMinutes() / 60);
+                    }
+                }
+                const pauseHours = getTotalPauseHours(session.pauses);
+                if (start && end) {
+                    const workHours = Math.max(end - start - pauseHours, 0);
+                    totalPeriodWorkedMinutes += workHours * 60;
+                }
+
                 if (session.focus_sessions) {
-                    console.log('Focus sessions for session:', session.focus_sessions);
                     session.focus_sessions.forEach(fs => {
-                        if (fs.tag && fs.duration > 0) {
-                            if (!tagTotals[fs.tag]) {
-                                tagTotals[fs.tag] = 0;
+                        const tags = (fs.tags && fs.tags.length > 0) ? fs.tags : [i18n['untagged']];
+                        const durationPerTag = fs.duration / tags.length;
+                        totalPeriodFocusMinutes += fs.duration;
+                        tags.forEach(tag => {
+                            if (!tagTimeData[tag]) {
+                                tagTimeData[tag] = 0;
                             }
-                            tagTotals[fs.tag] += fs.duration;
-                        }
+                            tagTimeData[tag] += durationPerTag;
+                        });
+                    });
+                }
+
+                // Process tasks for task count data
+                if (session.tasks) {
+                    session.tasks.forEach(task => {
+                        const tags = (task.tags && task.tags.length > 0) ? task.tags : [i18n['untagged']];
+                        const countPerTag = 1;
+                        tags.forEach(tagName => {
+                            if (!tagTaskData[tagName]) {
+                                tagTaskData[tagName] = { completed: 0, total: 0, tasks: [] };
+                            }
+                            tagTaskData[tagName].total += countPerTag;
+                            if (task.is_completed) {
+                                tagTaskData[tagName].completed += countPerTag;
+                            }
+                            // Add task to tag's task list (avoiding exact duplicates if needed, but here simple push is fine)
+                            tagTaskData[tagName].tasks.push({
+                                description: task.description,
+                                is_completed: task.is_completed
+                            });
+                        });
                     });
                 }
             });
 
-            console.log('Tag totals:', tagTotals);
+            // Add the difference (Work - Focus) to Untagged time
+            const untaggedTime = Math.max(totalPeriodWorkedMinutes - totalPeriodFocusMinutes, 0);
+            if (untaggedTime > 0) {
+                const untaggedKey = i18n['untagged'];
+                if (!tagTimeData[untaggedKey]) tagTimeData[untaggedKey] = 0;
+                tagTimeData[untaggedKey] += untaggedTime;
+            }
+
+            console.log('Tag time data:', tagTimeData);
+            console.log('Tag task data:', tagTaskData);
 
             // Fetch tag colors from the backend
             fetch('/api/tags')
@@ -794,31 +1084,48 @@
                     tags.forEach(tag => {
                         tagColors[tag.name] = tag.color;
                     });
+                    tagColors[i18n['untagged']] = '#94a3b8'; // Grey for Untagged
 
-                    // Prepare chart data
-                    const sortedTags = Object.entries(tagTotals)
+                    // Prepare time-based chart data
+                    const sortedTimeTags = Object.entries(tagTimeData)
                         .sort((a, b) => b[1] - a[1])
                         .slice(0, 10); // Top 10 tags
 
-                    const labels = sortedTags.map(([tag, _]) => tag);
-                    const values = sortedTags.map(([_, mins]) => mins / 60); // Convert to hours
-                    const colors = labels.map(tag => tagColors[tag] || '#38bdf8');
+                    const timeLabels = sortedTimeTags.map(([tag, _]) => tag);
+                    const timeValues = sortedTimeTags.map(([_, mins]) => mins / 60); // Convert to hours
+                    const timeColors = timeLabels.map(tag => tagColors[tag] || '#38bdf8');
+                    const totalTimeMins = sortedTimeTags.reduce((sum, [_, mins]) => sum + mins, 0);
 
-                    // Render doughnut chart
-                    const ctx = document.getElementById('tagChart').getContext('2d');
+                    // Prepare task-based chart data
+                    const sortedTaskTags = Object.entries(tagTaskData)
+                        .sort((a, b) => b[1].total - a[1].total)
+                        .slice(0, 10); // Top 10 tags
 
-                    if (tagChartInstance) {
-                        tagChartInstance.destroy();
+                    const taskLabels = sortedTaskTags.map(([tag, _]) => tag);
+                    const taskValues = sortedTaskTags.map(([_, data]) => data.total);
+                    const taskColors = taskLabels.map(tag => tagColors[tag] || '#38bdf8');
+                    const totalTasks = sortedTaskTags.reduce((sum, [_, data]) => sum + data.total, 0);
+
+                    // Render time-based doughnut chart
+                    const ctxTime = document.getElementById('tagChartTime').getContext('2d');
+                    const canvasTime = document.getElementById('tagChartTime');
+                    const emptyStateTime = document.getElementById('tagChartTimeEmpty');
+
+                    if (tagChartTimeInstance) {
+                        tagChartTimeInstance.destroy();
                     }
 
-                    if (sortedTags.length > 0) {
-                        tagChartInstance = new Chart(ctx, {
+                    if (sortedTimeTags.length > 0) {
+                        canvasTime.style.display = 'block';
+                        emptyStateTime.style.display = 'none';
+
+                        tagChartTimeInstance = new Chart(ctxTime, {
                             type: 'doughnut',
                             data: {
-                                labels: labels,
+                                labels: timeLabels,
                                 datasets: [{
-                                    data: values,
-                                    backgroundColor: colors,
+                                    data: timeValues,
+                                    backgroundColor: timeColors,
                                     borderWidth: 2,
                                     borderColor: '#1e293b'
                                 }]
@@ -835,38 +1142,226 @@
                                             label: function (context) {
                                                 const hours = Math.floor(context.parsed);
                                                 const mins = Math.round((context.parsed - hours) * 60);
-                                                return `${context.label}: ${hours}h ${mins}min`;
+                                                const percentage = totalTimeMins > 0 ? ((context.parsed * 60 / totalTimeMins) * 100).toFixed(1) : 0;
+                                                return `${context.label}: ${hours}h ${mins}min (${percentage}%)`;
                                             }
+                                        }
+                                    },
+                                    datalabels: {
+                                        color: '#fff',
+                                        font: {
+                                            weight: 'bold',
+                                            size: 14
+                                        },
+                                        formatter: (value, ctx) => {
+                                            const percentage = totalTimeMins > 0 ? ((value * 60 / totalTimeMins) * 100).toFixed(1) : 0;
+                                            return percentage > 5 ? percentage + '%' : ''; // Only show if > 5%
                                         }
                                     }
                                 }
-                            }
+                            },
+                            plugins: [{
+                                id: 'datalabels',
+                                afterDatasetsDraw: function (chart) {
+                                    const ctx = chart.ctx;
+                                    chart.data.datasets.forEach((dataset, i) => {
+                                        const meta = chart.getDatasetMeta(i);
+                                        meta.data.forEach((element, index) => {
+                                            const data = dataset.data[index];
+                                            const percentage = totalTimeMins > 0 ? ((data * 60 / totalTimeMins) * 100).toFixed(1) : 0;
+
+                                            if (percentage > 5) {
+                                                const position = element.tooltipPosition();
+
+                                                // Add shadow for depth
+                                                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                                                ctx.shadowBlur = 4;
+                                                ctx.shadowOffsetX = 1;
+                                                ctx.shadowOffsetY = 1;
+
+                                                ctx.fillStyle = '#fff';
+                                                ctx.font = 'bold 16px Inter';
+                                                ctx.textAlign = 'center';
+                                                ctx.textBaseline = 'middle';
+                                                ctx.fillText(percentage + '%', position.x, position.y);
+
+                                                // Reset shadow
+                                                ctx.shadowColor = 'transparent';
+                                                ctx.shadowBlur = 0;
+                                            }
+                                        });
+                                    });
+                                }
+                            }]
                         });
+                    } else {
+                        canvasTime.style.display = 'none';
+                        emptyStateTime.style.display = 'flex';
+                        emptyStateTime.style.flexDirection = 'column';
+                        emptyStateTime.style.alignItems = 'center';
                     }
 
-                    // Render tag summary badges
+                    // Render task-based doughnut chart
+                    const ctxTasks = document.getElementById('tagChartTasks').getContext('2d');
+                    const canvasTasks = document.getElementById('tagChartTasks');
+                    const emptyStateTasks = document.getElementById('tagChartTasksEmpty');
+
+                    if (tagChartTasksInstance) {
+                        tagChartTasksInstance.destroy();
+                    }
+
+                    if (sortedTaskTags.length > 0) {
+                        canvasTasks.style.display = 'block';
+                        emptyStateTasks.style.display = 'none';
+
+                        tagChartTasksInstance = new Chart(ctxTasks, {
+                            type: 'doughnut',
+                            data: {
+                                labels: taskLabels,
+                                datasets: [{
+                                    data: taskValues,
+                                    backgroundColor: taskColors,
+                                    borderWidth: 2,
+                                    borderColor: '#1e293b'
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                plugins: {
+                                    legend: {
+                                        display: false
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function (context) {
+                                                const tagName = context.label;
+                                                const taskData = tagTaskData[tagName];
+                                                const percentage = totalTasks > 0 ? ((context.parsed / totalTasks) * 100).toFixed(1) : 0;
+                                                return `${tagName}: ${taskData.completed}/${context.parsed} tasks (${percentage}%)`;
+                                            }
+                                        }
+                                    }
+                                },
+                                cutout: '70%'
+                            },
+                            plugins: [{
+                                id: 'datalabels',
+                                afterDatasetsDraw: function (chart) {
+                                    const ctx = chart.ctx;
+                                    chart.data.datasets.forEach((dataset, i) => {
+                                        const meta = chart.getDatasetMeta(i);
+                                        meta.data.forEach((element, index) => {
+                                            const data = dataset.data[index];
+                                            const percentage = totalTasks > 0 ? ((data / totalTasks) * 100).toFixed(1) : 0;
+
+                                            if (percentage > 5) {
+                                                const position = element.tooltipPosition();
+
+                                                // Add shadow for depth
+                                                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                                                ctx.shadowBlur = 4;
+                                                ctx.shadowOffsetX = 1;
+                                                ctx.shadowOffsetY = 1;
+
+                                                ctx.fillStyle = '#fff';
+                                                ctx.font = 'bold 16px Inter';
+                                                ctx.textAlign = 'center';
+                                                ctx.textBaseline = 'middle';
+                                                ctx.fillText(percentage + '%', position.x, position.y);
+
+                                                // Reset shadow
+                                                ctx.shadowColor = 'transparent';
+                                                ctx.shadowBlur = 0;
+                                            }
+                                        });
+                                    });
+                                }
+                            }]
+                        });
+                    } else {
+                        canvasTasks.style.display = 'none';
+                        emptyStateTasks.style.display = 'flex';
+                        emptyStateTasks.style.flexDirection = 'column';
+                        emptyStateTasks.style.alignItems = 'center';
+                    }
+
+                    // Render tag summary badges (combine both time and task data)
                     const tagSummary = document.getElementById('tagSummary');
                     tagSummary.innerHTML = '';
 
-                    sortedTags.forEach(([tag, mins]) => {
-                        const hours = Math.floor(mins / 60);
-                        const minutes = Math.round(mins % 60);
+                    // Get all unique tags from both datasets
+                    const allTags = new Set([...Object.keys(tagTimeData), ...Object.keys(tagTaskData)]);
+                    const combinedData = [];
+
+                    allTags.forEach(tag => {
+                        const timeMins = tagTimeData[tag] || 0;
+                        const taskData = tagTaskData[tag] || { completed: 0, total: 0, tasks: [] };
+                        combinedData.push({
+                            tag,
+                            timeMins,
+                            taskData
+                        });
+                    });
+
+                    // Sort by time (primary) or task count (secondary)
+                    combinedData.sort((a, b) => {
+                        if (b.timeMins !== a.timeMins) return b.timeMins - a.timeMins;
+                        return b.taskData.total - a.taskData.total;
+                    });
+
+                    combinedData.slice(0, 10).forEach(({ tag, timeMins, taskData }, index) => {
+                        const hours = Math.floor(timeMins / 60);
+                        const minutes = Math.round(timeMins % 60);
                         const color = tagColors[tag] || '#38bdf8';
+                        const completionRate = taskData.total > 0 ? (taskData.completed / taskData.total * 100) : 0;
 
                         const badge = document.createElement('div');
                         badge.style.cssText = `
                             display: flex;
                             flex-direction: column;
-                            align-items: center;
-                            padding: 0.5rem 1rem;
-                            border-radius: 8px;
-                            background-color: ${color}26;
-                            border: 1px solid ${color};
+                            padding: 0.5rem 0.75rem;
+                            border-radius: 10px;
+                            background-color: ${color}15;
+                            border: 1px solid ${color}40;
+                            min-width: 100px;
+                            max-width: 180px;
+                            flex: 0 0 auto;
+                            cursor: pointer;
+                            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                            ${index === 0 ? 'margin-left: auto;' : ''}
                         `;
 
+                        badge.onmouseenter = (e) => {
+                            badge.style.backgroundColor = `${color}25`;
+                            badge.style.borderColor = color;
+                            badge.style.transform = 'translateY(-2px)';
+                            badge.style.boxShadow = `0 4px 12px ${color}15`;
+                            showTagTasksPopup(tag, taskData.tasks, e);
+                        };
+                        badge.onmousemove = (e) => {
+                            updateTagTasksPopupPosition(e);
+                        };
+                        badge.onmouseleave = () => {
+                            badge.style.backgroundColor = `${color}15`;
+                            badge.style.borderColor = `${color}40`;
+                            badge.style.transform = 'translateY(0)';
+                            badge.style.boxShadow = 'none';
+                            hideTagTasksPopup();
+                        };
+
                         badge.innerHTML = `
-                            <div style="font-size: 0.75rem; color: ${color}; font-weight: 600;">${tag}</div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: ${color};">${hours}h ${minutes}m</div>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem; gap: 0.5rem;">
+                                <div style="font-size: 0.85rem; color: ${color}; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${tag}">${tag}</div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap;">${hours}h ${minutes}m</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <div style="font-size: 0.7rem; font-weight: 500; color: var(--text-primary); white-space: nowrap;">${Math.round(taskData.completed * 10) / 10}/${Math.round(taskData.total * 10) / 10}</div>
+                                <div style="font-size: 0.7rem; font-weight: 600; color: ${color};">${Math.round(completionRate)}%</div>
+                            </div>
+                            <div style="width: 100%; height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
+                                <div style="width: ${completionRate}%; height: 100%; background: ${color}; border-radius: 2px; transition: width 0.3s ease;"></div>
+                            </div>
                         `;
 
                         tagSummary.appendChild(badge);
@@ -875,35 +1370,10 @@
                 .catch(err => console.error('Failed to load tag colors:', err));
         }
 
-        function renderChart(labels, datasetsData, sessionIds, todayIndex, dayStatuses) {
-            const ctx = document.getElementById('metricsChart').getContext('2d');
-
+        function renderChartWithDatasets(ctx, labels, finalDatasets, sessionIds, todayIndex) {
             if (chartInstance) {
                 chartInstance.destroy();
             }
-
-            const colors = {
-                'work': '#38bdf8',
-                'vacation': '#fb923c', // Orange
-                'sick': '#a78bfa'     // Violet
-            };
-
-            const datasets = datasetsData.map((data, idx) => ({
-                label: i18n['working_time'],
-                data: data,
-                backgroundColor: dayStatuses ? dayStatuses.map(s => colors[s] || colors['work']) : '#38bdf8',
-                borderRadius: 4,
-                borderSkipped: false
-            }));
-
-            // Add dummy datasets for clean legend
-            const legendDatasets = [
-                { label: i18n['work'], backgroundColor: colors['work'], data: [] },
-                { label: i18n['vacation'], backgroundColor: colors['vacation'], data: [] },
-                { label: i18n['sick'], backgroundColor: colors['sick'], data: [] }
-            ];
-
-            const finalDatasets = [...datasets, ...legendDatasets];
 
             chartInstance = new Chart(ctx, {
                 type: 'bar',
@@ -917,8 +1387,23 @@
                     maintainAspectRatio: false,
                     indexAxis: 'x',
                     onClick: (e, elements) => {
-                        if (elements && elements.length > 0 && sessionIds) {
+                        if (elements && elements.length > 0) {
                             const index = elements[0].index;
+                            const datasetIndex = elements[0].datasetIndex;
+                            const dataset = finalDatasets[datasetIndex];
+                            const raw = dataset.data[index];
+
+                            // If it's a focus session (object with id)
+                            if (raw && typeof raw === 'object' && raw.id) {
+                                if (raw.task_id) {
+                                    window.location.href = `/focus/task/${raw.task_id}`;
+                                } else {
+                                    window.location.href = `/focus/day/${raw.session_id}`;
+                                }
+                                return;
+                            }
+
+                            // Standard session
                             const id = sessionIds[index];
                             if (id) {
                                 window.location.href = `/dashboard/${id}?edit=true`;
@@ -937,10 +1422,9 @@
                     },
                     scales: {
                         y: {
-                            stacked: false,
+                            stacked: false, // Don't stack floating bars
                             min: 7,
                             max: 20,
-                            title: { display: true, text: i18n['hour_of_day'] },
                             grid: { color: '#334155' },
                             ticks: {
                                 color: '#94a3b8',
@@ -951,7 +1435,7 @@
                             }
                         },
                         x: {
-                            stacked: true,
+                            stacked: !showFocusSessions,
                             grid: { display: false },
                             ticks: { color: '#94a3b8' }
                         }
@@ -961,8 +1445,18 @@
                             callbacks: {
                                 label: function (context) {
                                     const raw = context.raw;
-                                    if (!raw) return '';
-                                    const timeStr = formatHour(raw[0]) + ' - ' + formatHour(raw[1]);
+                                    if (!raw) return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + 'h';
+
+                                    if (raw.task_name) {
+                                        const timeStr = formatHour(raw.y[0]) + ' - ' + formatHour(raw.y[1]);
+                                        const tagsStr = (raw.tags && raw.tags.length > 0) ? ` [${raw.tags.join(', ')}]` : '';
+                                        return [`${raw.task_name}${tagsStr}`, timeStr];
+                                    }
+
+                                    const yRange = Array.isArray(raw) ? raw : (raw.y || null);
+                                    if (!yRange) return context.dataset.label;
+
+                                    const timeStr = formatHour(yRange[0]) + ' - ' + formatHour(yRange[1]);
 
                                     if (sessionIds && sessionIds[context.dataIndex]) {
                                         return [timeStr, `(${i18n['click_to_edit']})`];
@@ -975,8 +1469,6 @@
                             labels: {
                                 color: '#f8fafc',
                                 filter: function (item, chart) {
-                                    // Only show our dummy legend datasets (they have empty data arrays)
-                                    // or specifically label matching work/vacation/sick
                                     return [i18n['work'], i18n['vacation'], i18n['sick']].includes(item.text);
                                 }
                             }
@@ -984,6 +1476,159 @@
                     }
                 }
             });
+        }
+
+        function renderChart(labels, datasetsData, sessionIds, todayIndex, dayStatuses, sessionData) {
+            const ctx = document.getElementById('metricsChart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const colors = {
+                'work': '#38bdf8',
+                'vacation': '#fb923c', // Orange
+                'sick': '#a78bfa'     // Violet
+            };
+
+            // Create base datasets (worked hours in transparent grey when focus sessions are shown)
+            const datasets = datasetsData.map((data, idx) => ({
+                label: i18n['working_time'],
+                data: data,
+                backgroundColor: showFocusSessions ?
+                    dayStatuses.map(s => (s === 'work' || !s) ? 'rgba(148, 163, 184, 0.3)' : (colors[s] || colors['work'])) :
+                    (dayStatuses ? dayStatuses.map(s => colors[s] || colors['work']) : '#38bdf8'),
+                borderRadius: 4,
+                borderSkipped: false,
+                grouped: !showFocusSessions, // Disable grouping to allow overlap and full width
+                order: showFocusSessions ? 2 : 1
+            }));
+
+            let finalDatasets = [...datasets];
+
+            // Add focus session datasets if enabled
+            if (showFocusSessions && sessionData) {
+                // Fetch tag colors first
+                fetch('/api/tags')
+                    .then(res => res.json())
+                    .then(tags => {
+                        const tagColors = {};
+                        tags.forEach(tag => {
+                            tagColors[tag.name] = tag.color;
+                        });
+
+                        function createHashedPattern(colors) {
+                            if (!colors || colors.length === 0) return '#94a3b8';
+                            if (colors.length === 1) return colors[0];
+
+                            const stripeCount = colors.length;
+                            const stripeSize = 10;
+                            const size = stripeSize * stripeCount * 2;
+                            const canvas = document.createElement('canvas');
+                            canvas.width = size;
+                            canvas.height = size;
+                            const tctx = canvas.getContext('2d');
+
+                            // Create equal diagonal stripes
+                            for (let i = -stripeCount * 2; i < stripeCount * 2; i++) {
+                                tctx.fillStyle = colors[Math.abs(i) % stripeCount];
+                                tctx.beginPath();
+                                tctx.moveTo(i * stripeSize, 0);
+                                tctx.lineTo((i + 1) * stripeSize, 0);
+                                tctx.lineTo((i + 1) * stripeSize + size, size);
+                                tctx.lineTo(i * stripeSize + size, size);
+                                tctx.closePath();
+                                tctx.fill();
+                            }
+                            return tctx.createPattern(canvas, 'repeat');
+                        }
+
+                        // Group focus sessions by tag
+                        const focusByTag = {};
+
+                        sessionData.forEach((session, dayIndex) => {
+                            if (session && session.focus_sessions) {
+                                session.focus_sessions.forEach(fs => {
+                                    const tags = (fs.tags && fs.tags.length > 0) ? fs.tags : [i18n['untagged']];
+                                    const primaryTag = tags[0];
+
+                                    if (primaryTag && fs.start_hour !== undefined && fs.end_hour !== undefined) {
+                                        if (!focusByTag[primaryTag]) {
+                                            focusByTag[primaryTag] = [];
+                                        }
+
+                                        let bg;
+                                        if (tags.length > 1) {
+                                            const colors = tags.map(t => tagColors[t] || '#38bdf8');
+                                            bg = createHashedPattern(colors);
+                                        } else {
+                                            bg = tagColors[primaryTag] || '#38bdf8';
+                                        }
+
+                                        focusByTag[primaryTag].push({
+                                            x: labels[dayIndex],
+                                            y: [fs.start_hour, fs.end_hour],
+                                            duration: fs.duration,
+                                            task_name: fs.task_name,
+                                            tags: tags,
+                                            id: fs.id,
+                                            session_id: fs.session_id,
+                                            task_id: fs.task_id,
+                                            backgroundColor: bg
+                                        });
+                                    }
+                                });
+                            }
+                        });
+
+                        const focusDatasets = Object.entries(focusByTag).map(([tag, data]) => ({
+                            label: tag,
+                            data: data,
+                            backgroundColor: data.map(d => d.backgroundColor),
+                            borderRadius: 4,
+                            borderSkipped: false,
+                            grouped: false, // Overlap
+                            order: 1 // Front
+                        }));
+
+                        // Add dummy datasets for clean legend
+                        const workLegendColor = showFocusSessions ? 'rgba(148, 163, 184, 0.3)' : colors['work'];
+                        const legendDatasets = [
+                            { label: i18n['work'], backgroundColor: workLegendColor, data: [], order: 3 },
+                            { label: i18n['vacation'], backgroundColor: colors['vacation'], data: [], order: 3 },
+                            { label: i18n['sick'], backgroundColor: colors['sick'], data: [], order: 3 }
+                        ];
+
+                        const allDatasets = [...datasets, ...focusDatasets, ...legendDatasets];
+
+                        // Re-render chart with focus data
+                        renderChartWithDatasets(ctx, labels, allDatasets, sessionIds, todayIndex);
+                    })
+                    .catch(err => {
+                        console.error('Failed to load tag colors:', err);
+                        // Fallback to rendering without focus sessions
+                        const workLegendColor = showFocusSessions ? 'rgba(148, 163, 184, 0.3)' : colors['work'];
+                        const legendDatasets = [
+                            { label: i18n['work'], backgroundColor: workLegendColor, data: [], order: 3 },
+                            { label: i18n['vacation'], backgroundColor: colors['vacation'], data: [], order: 3 },
+                            { label: i18n['sick'], backgroundColor: colors['sick'], data: [], order: 3 }
+                        ];
+                        const allDatasets = [...datasets, ...legendDatasets];
+                        renderChartWithDatasets(ctx, labels, allDatasets, sessionIds, todayIndex);
+                    });
+                return; // Exit early, will render async
+            }
+
+            // Add dummy datasets for clean legend
+            const legendDatasets = [
+                { label: i18n['work'], backgroundColor: colors['work'], data: [] },
+                { label: i18n['vacation'], backgroundColor: colors['vacation'], data: [] },
+                { label: i18n['sick'], backgroundColor: colors['sick'], data: [] }
+            ];
+
+            finalDatasets = [...datasets, ...legendDatasets];
+
+            renderChartWithDatasets(ctx, labels, finalDatasets, sessionIds, todayIndex);
         }
 
         function formatTableTimes() {
@@ -1019,6 +1664,93 @@
             document.getElementById('filterTimeStartBefore').value = '';
             document.getElementById('filterTimeEndAfter').value = '';
             applyFilters();
+        }
+
+        function showTagTasksPopup(tag, tasks, event) {
+            const popup = document.getElementById('tagTasksPopup');
+            const title = document.getElementById('popupTagTitle');
+            const list = document.getElementById('popupTasksList');
+
+            if (!popup || !title || !list) return;
+
+            title.innerHTML = `<span>${tag}</span> <span style="font-size: 0.7rem; color: var(--text-secondary); font-weight: normal;">${tasks.length} ${i18n['tasks']}</span>`;
+            list.innerHTML = '';
+
+            if (tasks && tasks.length > 0) {
+                // De-duplicate tasks by description
+                const uniqueTasksMap = new Map();
+                tasks.forEach(t => {
+                    if (!uniqueTasksMap.has(t.description) || t.is_completed) {
+                        uniqueTasksMap.set(t.description, t);
+                    }
+                });
+                const uniqueTasksList = Array.from(uniqueTasksMap.values());
+
+                uniqueTasksList.slice(0, 10).forEach(t => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span class="task-status" style="color: ${t.is_completed ? 'var(--success)' : 'var(--danger)'}">${t.is_completed ? '✓' : '✗'}</span>
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t.description}</span>
+                    `;
+                    list.appendChild(li);
+                });
+
+                if (uniqueTasksList.length > 10) {
+                    const li = document.createElement('li');
+                    li.style.justifyContent = 'center';
+                    li.style.color = 'var(--text-secondary)';
+                    li.style.fontSize = '0.75rem';
+                    li.style.marginTop = '0.25rem';
+                    li.textContent = `+ ${uniqueTasksList.length - 10} more...`;
+                    list.appendChild(li);
+                }
+            } else {
+                const li = document.createElement('li');
+                li.style.color = 'var(--text-secondary)';
+                li.style.fontStyle = 'italic';
+                li.textContent = 'No tasks';
+                list.appendChild(li);
+            }
+
+            popup.style.display = 'block';
+            popup.style.opacity = '1';
+            updateTagTasksPopupPosition(event);
+        }
+
+        function updateTagTasksPopupPosition(event) {
+            const popup = document.getElementById('tagTasksPopup');
+            if (!popup || popup.style.display === 'none') return;
+
+            const padding = 15;
+            let x = event.pageX + padding;
+            let y = event.pageY + padding;
+
+            const popupRect = popup.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            // Check right edge
+            if (x + popupRect.width > viewportWidth + window.scrollX) {
+                x = event.pageX - popupRect.width - padding;
+            }
+
+            // Check bottom edge
+            if (y + popupRect.height > viewportHeight + window.scrollY) {
+                y = event.pageY - popupRect.height - padding;
+            }
+
+            popup.style.left = x + 'px';
+            popup.style.top = y + 'px';
+        }
+
+        function hideTagTasksPopup() {
+            const popup = document.getElementById('tagTasksPopup');
+            if (popup) {
+                popup.style.opacity = '0';
+                setTimeout(() => {
+                    if (popup.style.opacity === '0') popup.style.display = 'none';
+                }, 200);
+            }
         }
 
         function applyFilters() {

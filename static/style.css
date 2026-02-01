@@ -213,7 +213,8 @@ h3 {
 /* Metrics */
 .metrics-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 .metrics-table th,
@@ -226,6 +227,53 @@ h3 {
 .metrics-table th {
     color: var(--text-secondary);
     font-weight: 500;
+    position: sticky;
+    top: 0;
+    background-color: var(--card-bg);
+    z-index: 10;
+    box-shadow: inset 0 -1px 0 #334155;
+}
+
+.tag-summary-scroll::-webkit-scrollbar {
+    height: 4px;
+}
+
+.tag-summary-scroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.tag-summary-scroll::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 10px;
+}
+
+.session-history-scroll {
+    max-height: 500px;
+    overflow-y: auto;
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+}
+
+.session-history-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.session-history-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.session-history-scroll::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+}
+
+.session-history-scroll::-webkit-scrollbar-thumb:hover {
+    background: #475569;
 }
 
 /* Animations */
