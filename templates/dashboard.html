@@ -68,9 +68,6 @@
         <div class="card">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 1.5rem;">
                 <h3>{{ t['tasks'] }}</h3>
-                <a href="/focus/day/{{ session.id }}" class="btn btn-secondary" style="padding:0.4rem 0.8rem;">
-                    {{ t['focus_pomodoro'] }}
-                </a>
             </div>
 
             <div class="input-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
@@ -104,7 +101,8 @@
                             <span class="tag-pill" style="color: {{ tag.color }};">
                                 <span class="tag-color-dot" style="color: {{ tag.color }};"
                                     onclick="showColorPicker(event, '{{ tag.id }}')"></span>
-                                <span class="tag-text">{{ tag.name }}</span>
+                                <span class="tag-text" contenteditable="true"
+                                    onblur="updateTagName('{{ tag.id }}', this.innerText)">{{ tag.name }}</span>
                                 <span class="tag-remove-btn"
                                     onclick="removeTag('{{ task.id }}', '{{ tag.name }}')">×</span>
                             </span>

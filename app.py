@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, make_response
-from models import db, DailySession, Task, Pause, FocusSession, FocusPause, Tag
+from models import db, DailySession, Task, Pause, FocusSession, FocusPause, Tag, SuperTag
 from datetime import datetime, timedelta, date
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -201,62 +201,7 @@ def focus_task(task_id):
         })
     return render_template('focus.html', session=session, task=task, focus_rows=focus_rows, mode="task", active_focus=active_focus)
 
-@app.route('/focus/day/<int:session_id>')
-def focus_day(session_id):
-    session = DailySession.query.get_or_404(session_id)
-    focus_sessions = FocusSession.query.filter_by(session_id=session_id, task_id=None).order_by(FocusSession.start_time.desc()).all()
-    focus_rows = []
-    active_focus = None
-    for fs in focus_sessions:
-        pause_seconds = 0
-        active_pause = False
-        for p in fs.pauses:
-            if p.start_time and p.end_time:
-                pause_seconds += int((p.end_time - p.start_time).total_seconds())
-            elif p.start_time:
-                pause_seconds += int((datetime.now() - p.start_time).total_seconds())
-                active_pause = True
 
-        if fs.start_time and fs.end_time:
-            total_seconds = int((fs.end_time - fs.start_time).total_seconds())
-        elif fs.start_time:
-            total_seconds = int((datetime.now() - fs.start_time).total_seconds())
-        else:
-            total_seconds = 0
-        work_seconds = max(total_seconds - pause_seconds, 0)
-        if fs.end_time is None and active_focus is None:
-            active_focus = {
-                "id": fs.id,
-                "start_iso": fs.start_time.isoformat() if fs.start_time else "",
-                "pomodoro": fs.pomodoro_mode or "",
-                "note": fs.note or "",
-                "pause_seconds": pause_seconds,
-                "active_pause": active_pause
-            }
-        focus_rows.append({
-            "id": fs.id,
-            "start": fs.start_time,
-            "end": fs.end_time,
-            "pomodoro": fs.pomodoro_mode or "",
-            "note": fs.note or "",
-            "start_date": fs.start_time.strftime('%Y-%m-%d') if fs.start_time else "",
-            "start_time": fs.start_time.strftime('%H:%M') if fs.start_time else "",
-            "end_date": fs.end_time.strftime('%Y-%m-%d') if fs.end_time else "",
-            "end_time": fs.end_time.strftime('%H:%M') if fs.end_time else "",
-            "pauses": [{
-                "id": p.id,
-                "duration": format_seconds(
-                    int((p.end_time - p.start_time).total_seconds()) if p.start_time and p.end_time else 0
-                )
-            } for p in fs.pauses],
-            "work": format_seconds(work_seconds),
-            "pause": format_seconds(pause_seconds),
-            "pause_total": format_seconds(pause_seconds),
-            "total": format_seconds(total_seconds),
-            "active": fs.end_time is None,
-            "active_pause": active_pause
-        })
-    return render_template('focus.html', session=session, task=None, focus_rows=focus_rows, mode="day", active_focus=active_focus)
 
 @app.route('/api/task/add', methods=['POST'])
 def add_task():
@@ -352,6 +297,11 @@ def get_tags():
     tags = Tag.query.all()
     return jsonify([{'id': t.id, 'name': t.name, 'color': t.color} for t in tags])
 
+@app.route('/api/supertags', methods=['GET'])
+def get_supertags():
+    supertags = SuperTag.query.all()
+    return jsonify([{'id': st.id, 'color': st.color, 'name': st.name} for st in supertags])
+
 @app.route('/api/tag/delete', methods=['POST'])
 def delete_tag():
     data = request.json
@@ -380,6 +330,39 @@ def update_tag_color():
         return jsonify({'error': 'Invalid data'}), 400
         
     tag.color = color
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/tag/update_name', methods=['POST'])
+def update_tag_name():
+    data = request.json
+    tag_id = data.get('tag_id')
+    name = data.get('name')
+    
+    tag = db.session.get(Tag, tag_id)
+    if not tag or not name:
+        return jsonify({'error': 'Invalid data'}), 400
+        
+    tag.name = name.strip()
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/supertag/update_name', methods=['POST'])
+def update_supertag_name():
+    data = request.json
+    color = data.get('color')
+    name = data.get('name')
+    
+    if not color or not name:
+        return jsonify({'error': 'Invalid data'}), 400
+        
+    super_tag = SuperTag.query.filter_by(color=color).first()
+    if not super_tag:
+        super_tag = SuperTag(color=color, name=name.strip())
+        db.session.add(super_tag)
+    else:
+        super_tag.name = name.strip()
+        
     db.session.commit()
     return jsonify({'status': 'success'})
 
@@ -503,8 +486,8 @@ def start_focus():
     pomodoro_mode = data.get('pomodoro_mode')
     note = data.get('note')
 
-    if not session_id:
-        return jsonify({'error': 'Missing session_id'}), 400
+    if not session_id or not task_id:
+        return jsonify({'error': 'Missing session_id or task_id'}), 400
 
     active = FocusSession.query.filter_by(session_id=session_id, task_id=task_id, end_time=None).first()
     if active:
@@ -1000,11 +983,10 @@ def add_time_report_table(pdf, rows, t):
             pdf.add_page()
             render_header()
 
-def add_task_report_table(pdf, day_rows, t):
+def add_task_report_table(pdf, week_rows, t):
     col_width = 190
-    line_height = 7
-
-    if not day_rows:
+    
+    if not week_rows:
         pdf.set_font("Helvetica", size=10)
         pdf.cell(col_width, 10, "No sessions in selected period.", border=1, align="L")
         pdf.ln(10)
@@ -1012,8 +994,8 @@ def add_task_report_table(pdf, day_rows, t):
 
     current_month = None
 
-    for day in day_rows:
-        row_date = datetime.strptime(day["date_raw"], "%Y-%m-%d")
+    for week in week_rows:
+        row_date = datetime.strptime(week["date_raw"], "%Y-%m-%d")
         row_month = row_date.strftime("%Y-%m")
         
         # Month Header
@@ -1028,78 +1010,72 @@ def add_task_report_table(pdf, day_rows, t):
             pdf.ln(12)
             pdf.set_text_color(0, 0, 0)
 
-        # Day Header
+        # Week Header
         pdf.set_font("Helvetica", style="B", size=10)
         pdf.set_fill_color(241, 245, 249)
-        pdf.cell(col_width, 8, day["date_label"], border="B", align="L", fill=True)
+        pdf.cell(col_width, 8, week["date_label"], border="B", align="L", fill=True)
         pdf.ln(10)
 
-        if day["status"] == "sick":
-            pdf.set_font("Helvetica", style="I", size=10)
-            pdf.set_text_color(150, 0, 0)
-            pdf.cell(col_width, 8, f"  - {t['krank']}", ln=True)
-            pdf.set_text_color(0, 0, 0)
-            pdf.ln(2)
-            continue
-        elif day["status"] == "vacation":
-            pdf.set_font("Helvetica", style="I", size=10)
-            pdf.set_text_color(0, 100, 0)
-            pdf.cell(col_width, 8, f"  - {t['urlaub']}", ln=True)
-            pdf.set_text_color(0, 0, 0)
-            pdf.ln(2)
-            continue
+        if not week["supertags"]:
+             pdf.set_font("Helvetica", style="I", size=9)
+             pdf.set_text_color(120, 120, 120)
+             pdf.cell(col_width, 8, "  (No tasks recorded)", ln=True)
+             pdf.set_text_color(0, 0, 0)
+             pdf.ln(2)
+             continue
 
-        if not day["groups"]:
-            pdf.set_font("Helvetica", style="I", size=9)
-            pdf.set_text_color(120, 120, 120)
-            pdf.cell(col_width, 8, "  (No tasks recorded)", ln=True)
-            pdf.set_text_color(0, 0, 0)
-            pdf.ln(2)
-            continue
-
-        for group in day["groups"]:
-            # Tag Header with Color Dot
-            tag_name = group["tag_name"]
-            tag_color = group["tag_color"]
+        for st in week["supertags"]:
+            # SuperTag Header
+            if pdf.get_y() > 260: pdf.add_page()
             
-            # Check for page break
-            if pdf.get_y() > 260:
-                pdf.add_page()
-
-            # Draw Tag Indicator
-            x = pdf.get_x() + 5
-            y = pdf.get_y() + 2.5
-            r, g, b = hex_to_rgb(tag_color)
+            st_name = st["name"]
+            st_color = st["color"]
+            
+            r,g,b = hex_to_rgb(st_color)
             pdf.set_fill_color(r, g, b)
-            pdf.circle(x, y, 1.5, 'F')
             
-            pdf.set_xy(x + 5, pdf.get_y())
-            pdf.set_font("Helvetica", style="B", size=9)
-            pdf.cell(col_width - 10, 5, group["tag_name"], ln=True)
+            # Colored Indicator for SuperTag
+            pdf.rect(pdf.get_x() + 2, pdf.get_y() + 1, 3, 6, "F")
+            
+            pdf.set_font("Helvetica", style="B", size=10)
+            pdf.set_x(pdf.get_x() + 7)
+            pdf.cell(col_width - 7, 8, st_name.upper(), ln=True)
             pdf.ln(1)
-
-            # Tasks in this group
-            pdf.set_font("Helvetica", size=9)
-            for task in group["tasks"]:
-                if pdf.get_y() > 270:
-                    pdf.add_page()
-                
-                status_icon = "[v]" if task["completed"] else "[ ]"
-                desc = task["description"]
-                
-                pdf.set_x(x + 5)
-                # Check for wrap and height to handle page breaks
-                txt = f"{status_icon} {desc}"
-                lines = pdf.multi_cell(col_width - 15, 5, txt, border=0, align="L", split_only=True)
-                item_height = len(lines) * 5
-                if pdf.get_y() + item_height > 275:
-                    pdf.add_page()
-                    pdf.set_x(x + 5)
-                
-                pdf.multi_cell(col_width - 15, 5, txt, border=0, align="L")
             
+            # Group by Tags
+            for tag in st["tags"]:
+                # Tag Header
+                x_indent = 10
+                if pdf.get_y() > 265: pdf.add_page()
+                
+                pdf.set_x(10 + x_indent) # Fixed indent relative to margin
+                pdf.set_font("Helvetica", style="B", size=9)
+                
+                # Small dot for tag color just to be nice?
+                tr, tg, tb = hex_to_rgb(tag["color"])
+                pdf.set_fill_color(tr, tg, tb)
+                pdf.circle(pdf.get_x() - 3, pdf.get_y() + 3, 1.5, 'F')
+                
+                pdf.cell(col_width - x_indent, 6, tag["name"], ln=True)
+                
+                # Tasks
+                pdf.set_font("Helvetica", size=9)
+                for task in tag["tasks"]:
+                     if pdf.get_y() > 270:
+                        pdf.add_page()
+                        pdf.set_x(10 + x_indent) # Restore margin on new page
+                     
+                     status_icon = "[v]" if task["completed"] else "[ ]"
+                     desc = task["description"]
+                     
+                     pdf.set_x(10 + x_indent + 5)
+                     txt = f"{status_icon} {desc}"
+                     # Use multi_cell for wrapping
+                     # Calculate height first to avoid orphan lines if possible
+                     pdf.multi_cell(col_width - x_indent - 15, 5, txt, border=0, align="L")
+                
+                pdf.ln(2)
             pdf.ln(2)
-        pdf.ln(2)
 
 @app.route('/reports')
 def reports():
@@ -1160,36 +1136,89 @@ def reports_pdf():
         pdf.ln(6)
         pdf.set_text_color(0, 0, 0)
 
-        day_rows = []
+        # Prepare SuperTag Map
+        all_supertags = db.session.query(SuperTag).all()
+        st_map = {st.color: {"name": st.name, "color": st.color} for st in all_supertags}
+        
+        weeks = {}
+
         for session in sessions:
-            groups = {} # tag_name -> {color, tasks: []}
+            iso_year, iso_week, _ = session.date.isocalendar()
+            week_key = (iso_year, iso_week)
             
+            if week_key not in weeks:
+                # Find start of the week (Monday)
+                week_start = session.date - timedelta(days=session.date.weekday())
+                weeks[week_key] = {
+                    "start_date": week_start,
+                    "supertags": {}
+                }
+
             if session.status == "work":
+                day_name = trans['days'][session.date.strftime('%a')]
                 for task in session.tasks:
                     tags = task.tags if task.tags else []
                     primary_tag = tags[0] if tags else None
                     tag_name = pdf_safe(primary_tag.name) if primary_tag else trans['untagged']
                     tag_color = primary_tag.color if primary_tag else "#94a3b8"
                     
-                    if tag_name not in groups:
-                        groups[tag_name] = {"tag_color": tag_color, "tasks": []}
+                    # Determine SuperTag
+                    if tag_color in st_map:
+                        st_info = st_map[tag_color]
+                        # Use mapped color to ensure consistency, though it should be same
+                        st_color = st_info["color"] 
+                        st_name = pdf_safe(st_info["name"])
+                    else:
+                        st_name = trans.get('other', 'Other')
+                        st_color = "#94a3b8"
+
+                    if st_name not in weeks[week_key]["supertags"]:
+                        weeks[week_key]["supertags"][st_name] = {
+                            "name": st_name,
+                            "color": st_color,
+                            "tags": {}
+                        }
                     
-                    groups[tag_name]["tasks"].append({
-                        "description": pdf_safe(task.description),
+                    st_group = weeks[week_key]["supertags"][st_name]
+                    if tag_name not in st_group["tags"]:
+                        st_group["tags"][tag_name] = {
+                            "name": tag_name,
+                            "color": tag_color,
+                            "tasks": []
+                        }
+                    
+                    st_group["tags"][tag_name]["tasks"].append({
+                        "description": f"{pdf_safe(task.description)} ({day_name})",
                         "completed": task.is_completed
                     })
+        
+        report_rows = []
+        for week_key in sorted(weeks.keys()):
+            week_data = weeks[week_key]
+            week_start = week_data["start_date"]
+            week_end = week_start + timedelta(days=6)
             
-            day_name = trans['days'][session.date.strftime('%a')]
-            date_display = f"{day_name} {session.date.strftime('%d.%m.%Y')}"
+            st_list = []
+            for st_val in week_data["supertags"].values():
+                tag_list = []
+                for t_val in st_val["tags"].values():
+                    tag_list.append(t_val)
+                # Sort tags alphabetically
+                tag_list.sort(key=lambda x: x["name"])
+                st_val["tags"] = tag_list
+                st_list.append(st_val)
             
-            day_rows.append({
-                "date_label": date_display,
-                "date_raw": session.date.strftime('%Y-%m-%d'),
-                "status": session.status,
-                "groups": [{"tag_name": name, "tag_color": val["tag_color"], "tasks": val["tasks"]} for name, val in groups.items()]
+            # Sort SuperTags alphabetically
+            st_list.sort(key=lambda x: x["name"])
+
+            report_rows.append({
+                "date_label": f"Week {week_key[1]} ({week_start.strftime('%d.%m.%Y')} - {week_end.strftime('%d.%m.%Y')})",
+                "date_raw": week_start.strftime('%Y-%m-%d'),
+                "status": "week", 
+                "supertags": st_list
             })
 
-        add_task_report_table(pdf, day_rows, trans)
+        add_task_report_table(pdf, report_rows, trans)
 
         filename = f"tasks_{start_date.isoformat()}_{end_date.isoformat()}.pdf"
 
@@ -1211,9 +1240,9 @@ def reports_pdf():
             weekly_totals.setdefault((iso_year, iso_week), {"work": 0, "pause": 0, "total": 0})
 
             if session.status in ("sick", "vacation"):
-                work_minutes = 7 * 60 + 50
-                pause_minutes = 30
-                total_minutes = work_minutes + pause_minutes
+                work_minutes = 0
+                pause_minutes = 0
+                total_minutes = 0
                 note = trans['krank'] if session.status == "sick" else trans['urlaub']
             else:
                 if not session.start_time or not session.end_time:

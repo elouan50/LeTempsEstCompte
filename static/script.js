@@ -107,7 +107,7 @@ async function addTask() {
                     ${(task.tags || []).map(t => `
                     <span class="tag-pill" style="color: ${t.color};">
                         <span class="tag-color-dot" style="color: ${t.color};" onclick="showColorPicker(event, '${t.id}')"></span>
-                        <span class="tag-text">${t.name}</span>
+                        <span class="tag-text" contenteditable="true" onblur="updateTagName('${t.id}', this.innerText)">${t.name}</span>
                         <span class="tag-remove-btn" onclick="removeTag('${task.id}', '${t.name}')">×</span>
                     </span>
                     `).join('')}
@@ -274,6 +274,16 @@ async function updateTagColor(tagId, color) {
         body: JSON.stringify({ tag_id: tagId, color: color })
     });
     if (res.ok) window.location.reload();
+}
+
+async function updateTagName(tagId, name) {
+    const res = await fetch('/api/tag/update_name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_id: tagId, name: name })
+    });
+    // No reload needed if it's just a rename, but keep it consistent for now
+    if (!res.ok) alert("Failed to update tag name");
 }
 
 async function removeTag(taskId, tagName) {

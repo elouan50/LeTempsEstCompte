@@ -148,6 +148,83 @@
             flex-shrink: 0;
             margin-top: 2px;
         }
+
+        /* Hierarchical Pill UI */
+        .super-pill {
+            display: flex;
+            flex-direction: column;
+            padding: 0.6rem 1rem;
+            border-radius: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            min-width: 140px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .super-pill:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .super-pill.expanded {
+            border-color: var(--accent);
+            background: rgba(var(--accent-rgb), 0.05);
+        }
+
+        .super-pill-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .supertag-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            outline: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .supertag-name:focus {
+            border-bottom-color: currentColor;
+        }
+
+        .subpill-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .subpill {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
     </style>
     <script>
         const i18n = {{ t | tojson | safe }};
@@ -492,6 +569,15 @@
             window.location.href = `/dashboard/${id}?edit=true`;
         }
 
+        async function updateSuperTagName(color, name) {
+            const res = await fetch('/api/supertag/update_name', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ color: color, name: name })
+            });
+            if (!res.ok) alert("Failed to update supertag name");
+        }
+
         async function deleteSession(id) {
             if (!confirm(i18n['confirm_delete'])) return;
 
@@ -621,8 +707,17 @@
                 });
             }
 
-            currentViewDate = new Date(); // Reset to today on view switch ?? Or keep? Usually reset is better UX here.
+            currentViewDate = currentViewDate || new Date();
+            // Removed: currentViewDate = new Date(); (Preserve date for drill-down)
             renderCurrentView();
+        }
+
+        function getWeekNumber(d) {
+            d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+            var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+            return weekNo;
         }
 
         function goToToday() {
@@ -716,6 +811,7 @@
             let dayToSegments = []; // Temp storage for transposition
             let chartIds = [];
             let relevantData = [];
+            let alignedSessions = [];
             let todayIndex = null;
             const now = new Date();
             const todayY = now.getFullYear();
@@ -759,9 +855,11 @@
                 const entry = allData.find(x => x.date.startsWith(dateStr));
                 if (entry) {
                     relevantData.push(entry);
+                    alignedSessions.push(entry);
                     chartIds.push(entry.id);
                     dayToSegments.push(getWorkSegments(entry));
                 } else {
+                    alignedSessions.push(null);
                     chartIds.push(null);
                     dayToSegments.push([]);
                 }
@@ -790,9 +888,11 @@
 
                     if (entry) {
                         relevantData.push(entry);
+                        alignedSessions.push(entry);
                         chartIds.push(entry.id);
                         dayToSegments.push(getWorkSegments(entry));
                     } else {
+                        alignedSessions.push(null);
                         chartIds.push(null);
                         dayToSegments.push([]);
                     }
@@ -829,9 +929,11 @@
                     const entry = monthEntries.find(x => x.date.startsWith(dateKey));
 
                     if (entry) {
+                        alignedSessions.push(entry);
                         chartIds.push(entry.id);
                         dayToSegments.push(getWorkSegments(entry));
                     } else {
+                        alignedSessions.push(null);
                         chartIds.push(null);
                         dayToSegments.push([]);
                     }
@@ -853,6 +955,7 @@
                     const mName = monthsFull[idx];
                     chartLabels.push(mName);
                     chartIds.push(null); // No specific ID for month aggregate
+                    alignedSessions.push(null);
 
                     if (year === todayY && idx === todayM) {
                         todayIndex = idx;
@@ -889,71 +992,11 @@
                 return entry ? entry.status : 'work';
             });
 
-            renderChart(chartLabels, chartDatasetsData, chartIds, todayIndex, dayStatuses, relevantData);
+            renderChart(chartLabels, chartDatasetsData, chartIds, todayIndex, dayStatuses, alignedSessions);
             computeStats(relevantData);
-            renderTagChart(relevantData);
         }
 
-        function renderTagChart(data) {
-            const tagTotals = {};
-            data.forEach(s => {
-                if (s.focus_sessions) {
-                    s.focus_sessions.forEach(fs => {
-                        const tag = fs.tag || 'No Tag';
-                        tagTotals[tag] = (tagTotals[tag] || 0) + fs.duration;
-                    });
-                }
-            });
 
-            const labels = Object.keys(tagTotals);
-            const values = Object.values(tagTotals).map(v => (v / 60).toFixed(1)); // Convert to hours
-
-            if (tagChartInstance) tagChartInstance.destroy();
-
-            const canvas = document.getElementById('tagChart');
-            if (labels.length === 0) {
-                canvas.style.display = 'none';
-                document.getElementById('tagSummary').innerHTML = '';
-                return;
-            }
-            canvas.style.display = 'block';
-
-            const ctx = canvas.getContext('2d');
-            tagChartInstance = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: [
-                            '#38bdf8', '#818cf8', '#fb7185', '#34d399', '#fbbf24', '#a78bfa', '#f472b6'
-                        ],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: '#94a3b8', font: { family: 'Inter' }, padding: 10 }
-                        }
-                    },
-                    cutout: '70%'
-                }
-            });
-
-            // Update tag summary in stats
-            const summaryEl = document.getElementById('tagSummary');
-            summaryEl.innerHTML = '';
-            labels.forEach((label, i) => {
-                const div = document.createElement('div');
-                div.className = 'tag-badge';
-                div.textContent = `${label}: ${values[i]}h`;
-                summaryEl.appendChild(div);
-            });
-        }
 
         function computeStats(data) {
             let totalWork = 0; // Hours
@@ -1077,300 +1120,257 @@
             console.log('Tag time data:', tagTimeData);
             console.log('Tag task data:', tagTaskData);
 
-            // Fetch tag colors from the backend
-            fetch('/api/tags')
-                .then(res => res.json())
-                .then(tags => {
+            // Fetch tag colors AND supertags from the backend
+            Promise.all([
+                fetch('/api/tags').then(res => res.json()),
+                fetch('/api/supertags').then(res => res.json())
+            ])
+                .then(([tags, supertags]) => {
                     tags.forEach(tag => {
                         tagColors[tag.name] = tag.color;
                     });
                     tagColors[i18n['untagged']] = '#94a3b8'; // Grey for Untagged
 
-                    // Prepare time-based chart data
-                    const sortedTimeTags = Object.entries(tagTimeData)
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 10); // Top 10 tags
+                    const supertagMap = {};
+                    supertags.forEach(st => {
+                        supertagMap[st.color] = st.name;
+                    });
 
-                    const timeLabels = sortedTimeTags.map(([tag, _]) => tag);
-                    const timeValues = sortedTimeTags.map(([_, mins]) => mins / 60); // Convert to hours
-                    const timeColors = timeLabels.map(tag => tagColors[tag] || '#38bdf8');
-                    const totalTimeMins = sortedTimeTags.reduce((sum, [_, mins]) => sum + mins, 0);
+                    // Group results by color for the carousel AND charts
+                    const colorGroups = {};
+                    const allTagsSet = new Set([...Object.keys(tagTimeData), ...Object.keys(tagTaskData)]);
 
-                    // Prepare task-based chart data
-                    const sortedTaskTags = Object.entries(tagTaskData)
-                        .sort((a, b) => b[1].total - a[1].total)
-                        .slice(0, 10); // Top 10 tags
-
-                    const taskLabels = sortedTaskTags.map(([tag, _]) => tag);
-                    const taskValues = sortedTaskTags.map(([_, data]) => data.total);
-                    const taskColors = taskLabels.map(tag => tagColors[tag] || '#38bdf8');
-                    const totalTasks = sortedTaskTags.reduce((sum, [_, data]) => sum + data.total, 0);
-
-                    // Render time-based doughnut chart
-                    const ctxTime = document.getElementById('tagChartTime').getContext('2d');
-                    const canvasTime = document.getElementById('tagChartTime');
-                    const emptyStateTime = document.getElementById('tagChartTimeEmpty');
-
-                    if (tagChartTimeInstance) {
-                        tagChartTimeInstance.destroy();
-                    }
-
-                    if (sortedTimeTags.length > 0) {
-                        canvasTime.style.display = 'block';
-                        emptyStateTime.style.display = 'none';
-
-                        tagChartTimeInstance = new Chart(ctxTime, {
-                            type: 'doughnut',
-                            data: {
-                                labels: timeLabels,
-                                datasets: [{
-                                    data: timeValues,
-                                    backgroundColor: timeColors,
-                                    borderWidth: 2,
-                                    borderColor: '#1e293b'
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: true,
-                                plugins: {
-                                    legend: {
-                                        display: false
-                                    },
-                                    tooltip: {
-                                        callbacks: {
-                                            label: function (context) {
-                                                const hours = Math.floor(context.parsed);
-                                                const mins = Math.round((context.parsed - hours) * 60);
-                                                const percentage = totalTimeMins > 0 ? ((context.parsed * 60 / totalTimeMins) * 100).toFixed(1) : 0;
-                                                return `${context.label}: ${hours}h ${mins}min (${percentage}%)`;
-                                            }
-                                        }
-                                    },
-                                    datalabels: {
-                                        color: '#fff',
-                                        font: {
-                                            weight: 'bold',
-                                            size: 14
-                                        },
-                                        formatter: (value, ctx) => {
-                                            const percentage = totalTimeMins > 0 ? ((value * 60 / totalTimeMins) * 100).toFixed(1) : 0;
-                                            return percentage > 5 ? percentage + '%' : ''; // Only show if > 5%
-                                        }
-                                    }
-                                }
-                            },
-                            plugins: [{
-                                id: 'datalabels',
-                                afterDatasetsDraw: function (chart) {
-                                    const ctx = chart.ctx;
-                                    chart.data.datasets.forEach((dataset, i) => {
-                                        const meta = chart.getDatasetMeta(i);
-                                        meta.data.forEach((element, index) => {
-                                            const data = dataset.data[index];
-                                            const percentage = totalTimeMins > 0 ? ((data * 60 / totalTimeMins) * 100).toFixed(1) : 0;
-
-                                            if (percentage > 5) {
-                                                const position = element.tooltipPosition();
-
-                                                // Add shadow for depth
-                                                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                                                ctx.shadowBlur = 4;
-                                                ctx.shadowOffsetX = 1;
-                                                ctx.shadowOffsetY = 1;
-
-                                                ctx.fillStyle = '#fff';
-                                                ctx.font = 'bold 16px Inter';
-                                                ctx.textAlign = 'center';
-                                                ctx.textBaseline = 'middle';
-                                                ctx.fillText(percentage + '%', position.x, position.y);
-
-                                                // Reset shadow
-                                                ctx.shadowColor = 'transparent';
-                                                ctx.shadowBlur = 0;
-                                            }
-                                        });
-                                    });
-                                }
-                            }]
-                        });
-                    } else {
-                        canvasTime.style.display = 'none';
-                        emptyStateTime.style.display = 'flex';
-                        emptyStateTime.style.flexDirection = 'column';
-                        emptyStateTime.style.alignItems = 'center';
-                    }
-
-                    // Render task-based doughnut chart
-                    const ctxTasks = document.getElementById('tagChartTasks').getContext('2d');
-                    const canvasTasks = document.getElementById('tagChartTasks');
-                    const emptyStateTasks = document.getElementById('tagChartTasksEmpty');
-
-                    if (tagChartTasksInstance) {
-                        tagChartTasksInstance.destroy();
-                    }
-
-                    if (sortedTaskTags.length > 0) {
-                        canvasTasks.style.display = 'block';
-                        emptyStateTasks.style.display = 'none';
-
-                        tagChartTasksInstance = new Chart(ctxTasks, {
-                            type: 'doughnut',
-                            data: {
-                                labels: taskLabels,
-                                datasets: [{
-                                    data: taskValues,
-                                    backgroundColor: taskColors,
-                                    borderWidth: 2,
-                                    borderColor: '#1e293b'
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: true,
-                                plugins: {
-                                    legend: {
-                                        display: false
-                                    },
-                                    tooltip: {
-                                        callbacks: {
-                                            label: function (context) {
-                                                const tagName = context.label;
-                                                const taskData = tagTaskData[tagName];
-                                                const percentage = totalTasks > 0 ? ((context.parsed / totalTasks) * 100).toFixed(1) : 0;
-                                                return `${tagName}: ${taskData.completed}/${context.parsed} tasks (${percentage}%)`;
-                                            }
-                                        }
-                                    }
-                                },
-                                cutout: '70%'
-                            },
-                            plugins: [{
-                                id: 'datalabels',
-                                afterDatasetsDraw: function (chart) {
-                                    const ctx = chart.ctx;
-                                    chart.data.datasets.forEach((dataset, i) => {
-                                        const meta = chart.getDatasetMeta(i);
-                                        meta.data.forEach((element, index) => {
-                                            const data = dataset.data[index];
-                                            const percentage = totalTasks > 0 ? ((data / totalTasks) * 100).toFixed(1) : 0;
-
-                                            if (percentage > 5) {
-                                                const position = element.tooltipPosition();
-
-                                                // Add shadow for depth
-                                                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                                                ctx.shadowBlur = 4;
-                                                ctx.shadowOffsetX = 1;
-                                                ctx.shadowOffsetY = 1;
-
-                                                ctx.fillStyle = '#fff';
-                                                ctx.font = 'bold 16px Inter';
-                                                ctx.textAlign = 'center';
-                                                ctx.textBaseline = 'middle';
-                                                ctx.fillText(percentage + '%', position.x, position.y);
-
-                                                // Reset shadow
-                                                ctx.shadowColor = 'transparent';
-                                                ctx.shadowBlur = 0;
-                                            }
-                                        });
-                                    });
-                                }
-                            }]
-                        });
-                    } else {
-                        canvasTasks.style.display = 'none';
-                        emptyStateTasks.style.display = 'flex';
-                        emptyStateTasks.style.flexDirection = 'column';
-                        emptyStateTasks.style.alignItems = 'center';
-                    }
-
-                    // Render tag summary badges (combine both time and task data)
-                    const tagSummary = document.getElementById('tagSummary');
-                    tagSummary.innerHTML = '';
-
-                    // Get all unique tags from both datasets
-                    const allTags = new Set([...Object.keys(tagTimeData), ...Object.keys(tagTaskData)]);
-                    const combinedData = [];
-
-                    allTags.forEach(tag => {
+                    allTagsSet.forEach(tag => {
+                        const color = tagColors[tag] || '#38bdf8';
+                        if (!colorGroups[color]) {
+                            colorGroups[color] = {
+                                color: color,
+                                name: supertagMap[color] || color,
+                                timeMins: 0,
+                                completed: 0,
+                                total: 0,
+                                subtags: []
+                            };
+                        }
                         const timeMins = tagTimeData[tag] || 0;
                         const taskData = tagTaskData[tag] || { completed: 0, total: 0, tasks: [] };
-                        combinedData.push({
+
+                        colorGroups[color].timeMins += timeMins;
+                        colorGroups[color].completed += taskData.completed;
+                        colorGroups[color].total += taskData.total;
+                        colorGroups[color].subtags.push({
                             tag,
                             timeMins,
                             taskData
                         });
                     });
 
-                    // Sort by time (primary) or task count (secondary)
-                    combinedData.sort((a, b) => {
-                        if (b.timeMins !== a.timeMins) return b.timeMins - a.timeMins;
-                        return b.taskData.total - a.taskData.total;
+                    // Sort groups for Charts
+                    const sortedTimeGroups = Object.values(colorGroups)
+                        .filter(g => g.timeMins > 0)
+                        .sort((a, b) => b.timeMins - a.timeMins);
+
+                    const timeLabels = sortedTimeGroups.map(g => g.name);
+                    const timeValues = sortedTimeGroups.map(g => g.timeMins / 60);
+                    const timeColors = sortedTimeGroups.map(g => g.color);
+                    const totalTimeMins = sortedTimeGroups.reduce((sum, g) => sum + g.timeMins, 0);
+
+                    const sortedTaskGroups = Object.values(colorGroups)
+                        .filter(g => g.total > 0)
+                        .sort((a, b) => b.total - a.total);
+
+                    const taskLabels = sortedTaskGroups.map(g => g.name);
+                    const taskValues = sortedTaskGroups.map(g => g.total);
+                    const taskColors = sortedTaskGroups.map(g => g.color);
+                    const totalTasks = sortedTaskGroups.reduce((sum, g) => sum + g.total, 0);
+
+                    // Create a lookup map for task tooltips by Supertag Name
+                    const supertagTaskData = {};
+                    sortedTaskGroups.forEach(g => {
+                        supertagTaskData[g.name] = { completed: g.completed, total: g.total };
                     });
 
-                    combinedData.slice(0, 10).forEach(({ tag, timeMins, taskData }, index) => {
-                        const hours = Math.floor(timeMins / 60);
-                        const minutes = Math.round(timeMins % 60);
-                        const color = tagColors[tag] || '#38bdf8';
-                        const completionRate = taskData.total > 0 ? (taskData.completed / taskData.total * 100) : 0;
+                    // Render Charts with Supertag Data
+                    renderCharts(timeLabels, timeValues, timeColors, totalTimeMins, taskLabels, taskValues, taskColors, totalTasks, supertagTaskData);
 
-                        const badge = document.createElement('div');
-                        badge.style.cssText = `
-                            display: flex;
-                            flex-direction: column;
-                            padding: 0.5rem 0.75rem;
-                            border-radius: 10px;
-                            background-color: ${color}15;
-                            border: 1px solid ${color}40;
-                            min-width: 100px;
-                            max-width: 180px;
-                            flex: 0 0 auto;
-                            cursor: pointer;
-                            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-                            ${index === 0 ? 'margin-left: auto;' : ''}
+                    // Render tag summary badges (grouped by color)
+                    const tagSummary = document.getElementById('tagSummary');
+                    tagSummary.innerHTML = '';
+
+                    const sortedGroups = Object.values(colorGroups).sort((a, b) => b.timeMins - a.timeMins);
+
+                    sortedGroups.forEach((group, index) => {
+                        const hours = Math.floor(group.timeMins / 60);
+                        const minutes = Math.round(group.timeMins % 60);
+                        const completionRate = group.total > 0 ? (group.completed / group.total * 100) : 0;
+                        const color = group.color;
+
+                        const pill = document.createElement('div');
+                        pill.className = 'super-pill';
+                        pill.style.borderColor = `${color}40`;
+                        pill.style.backgroundColor = `${color}08`;
+
+                        pill.onclick = (e) => {
+                            if (e.target.classList.contains('supertag-name')) return;
+                            const container = pill.querySelector('.subpill-container');
+                            if (container) {
+                                const isExpanded = container.style.display !== 'none';
+                                container.style.display = isExpanded ? 'none' : 'flex';
+                                pill.classList.toggle('expanded', !isExpanded);
+                            }
+                        };
+
+                        pill.innerHTML = `
+                            <div class="super-pill-header">
+                                <div style="display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0;">
+                                    <div class="supertag-name" contenteditable="true" 
+                                         style="color: ${color};" 
+                                         onblur="updateSuperTagName('${color}', this.innerText)"
+                                         onclick="event.stopPropagation()"
+                                         title="Click to edit Supertag name">${group.name}</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary);">${hours}h ${minutes}m</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.75rem; font-weight: 600; color: ${color};">${Math.round(completionRate)}%</div>
+                                    <div style="font-size: 0.65rem; color: var(--text-secondary);">${Math.round(group.completed * 10) / 10}/${Math.round(group.total * 10) / 10}</div>
+                                </div>
+                            </div>
+                            <div style="width: 100%; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; overflow: hidden; margin-top: 0.5rem;">
+                                <div style="width: ${completionRate}%; height: 100%; background: ${color}; transition: width 0.3s ease;"></div>
+                            </div>
+                            <!-- Subtag pills container -->
+                            <div class="subpill-container" style="display: none;">
+                                ${group.subtags.map(st => `
+                                    <div class="subpill" style="border-color: ${color}30; color: ${color}CC;">
+                                        ${st.tag}
+                                    </div>
+                                `).join('')}
+                            </div>
                         `;
 
-                        badge.onmouseenter = (e) => {
-                            badge.style.backgroundColor = `${color}25`;
-                            badge.style.borderColor = color;
-                            badge.style.transform = 'translateY(-2px)';
-                            badge.style.boxShadow = `0 4px 12px ${color}15`;
-                            showTagTasksPopup(tag, taskData.tasks, e);
-                        };
-                        badge.onmousemove = (e) => {
-                            updateTagTasksPopupPosition(e);
-                        };
-                        badge.onmouseleave = () => {
-                            badge.style.backgroundColor = `${color}15`;
-                            badge.style.borderColor = `${color}40`;
-                            badge.style.transform = 'translateY(0)';
-                            badge.style.boxShadow = 'none';
-                            hideTagTasksPopup();
-                        };
-
-                        badge.innerHTML = `
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem; gap: 0.5rem;">
-                                <div style="font-size: 0.85rem; color: ${color}; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${tag}">${tag}</div>
-                                <div style="font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap;">${hours}h ${minutes}m</div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-                                <div style="font-size: 0.7rem; font-weight: 500; color: var(--text-primary); white-space: nowrap;">${Math.round(taskData.completed * 10) / 10}/${Math.round(taskData.total * 10) / 10}</div>
-                                <div style="font-size: 0.7rem; font-weight: 600; color: ${color};">${Math.round(completionRate)}%</div>
-                            </div>
-                            <div style="width: 100%; height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
-                                <div style="width: ${completionRate}%; height: 100%; background: ${color}; border-radius: 2px; transition: width 0.3s ease;"></div>
-                            </div>
-                        `;
-
-                        tagSummary.appendChild(badge);
+                        tagSummary.appendChild(pill);
                     });
                 })
-                .catch(err => console.error('Failed to load tag colors:', err));
+                .catch(err => console.error('Failed to load tags:', err));
         }
 
-        function renderChartWithDatasets(ctx, labels, finalDatasets, sessionIds, todayIndex) {
+        // Helper to separate chart rendering from data grouping
+        function renderCharts(timeLabels, timeValues, timeColors, totalTimeMins, taskLabels, taskValues, taskColors, totalTasks, tagTaskData) {
+            // Render time-based doughnut chart
+            const ctxTime = document.getElementById('tagChartTime').getContext('2d');
+            const canvasTime = document.getElementById('tagChartTime');
+            const emptyStateTime = document.getElementById('tagChartTimeEmpty');
+
+            if (tagChartTimeInstance) tagChartTimeInstance.destroy();
+
+            if (timeLabels.length > 0) {
+                canvasTime.style.display = 'block';
+                emptyStateTime.style.display = 'none';
+                tagChartTimeInstance = new Chart(ctxTime, {
+                    type: 'doughnut',
+                    data: {
+                        labels: timeLabels,
+                        datasets: [{
+                            data: timeValues,
+                            backgroundColor: timeColors,
+                            borderWidth: 2,
+                            borderColor: '#1e293b'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        const hours = Math.floor(context.parsed);
+                                        const mins = Math.round((context.parsed - hours) * 60);
+                                        const percentage = totalTimeMins > 0 ? ((context.parsed * 60 / totalTimeMins) * 100).toFixed(1) : 0;
+                                        return `${context.label}: ${hours}h ${mins}min (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    plugins: [{
+                        id: 'datalabels',
+                        afterDatasetsDraw: function (chart) {
+                            const ctx = chart.ctx;
+                            chart.data.datasets.forEach((dataset, i) => {
+                                const meta = chart.getDatasetMeta(i);
+                                meta.data.forEach((element, index) => {
+                                    const data = dataset.data[index];
+                                    const percentage = totalTimeMins > 0 ? ((data * 60 / totalTimeMins) * 100).toFixed(1) : 0;
+                                    if (percentage > 5) {
+                                        const position = element.tooltipPosition();
+                                        ctx.font = 'bold 12px Inter';
+                                        ctx.fillStyle = '#fff';
+                                        ctx.textAlign = 'center';
+                                        ctx.fillText(percentage + '%', position.x, position.y);
+                                    }
+                                });
+                            });
+                        }
+                    }]
+                });
+            } else {
+                canvasTime.style.display = 'none';
+                emptyStateTime.style.display = 'flex';
+            }
+
+            // Render task-based doughnut chart
+            const ctxTasks = document.getElementById('tagChartTasks').getContext('2d');
+            const canvasTasks = document.getElementById('tagChartTasks');
+            const emptyStateTasks = document.getElementById('tagChartTasksEmpty');
+
+            if (tagChartTasksInstance) tagChartTasksInstance.destroy();
+
+            if (taskLabels.length > 0) {
+                canvasTasks.style.display = 'block';
+                emptyStateTasks.style.display = 'none';
+                tagChartTasksInstance = new Chart(ctxTasks, {
+                    type: 'doughnut',
+                    data: {
+                        labels: taskLabels,
+                        datasets: [{
+                            data: taskValues,
+                            backgroundColor: taskColors,
+                            borderWidth: 2,
+                            borderColor: '#1e293b'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        const supertagName = context.label;
+                                        const groupData = tagTaskData[supertagName]; // actually supertagTaskData
+                                        const percentage = totalTasks > 0 ? ((context.parsed / totalTasks) * 100).toFixed(1) : 0;
+                                        if (groupData) {
+                                            return `${supertagName}: ${groupData.completed}/${context.parsed} tasks (${percentage}%)`;
+                                        }
+                                        return `${supertagName}: ${context.parsed} tasks (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '70%'
+                    }
+                });
+            } else {
+                canvasTasks.style.display = 'none';
+                emptyStateTasks.style.display = 'flex';
+            }
+        }
+
+        function renderChartWithDatasets_DEAD() {
+            return; /*
             if (chartInstance) {
                 chartInstance.destroy();
             }
@@ -1397,86 +1397,182 @@
                             if (raw && typeof raw === 'object' && raw.id) {
                                 if (raw.task_id) {
                                     window.location.href = `/focus/task/${raw.task_id}`;
-                                } else {
-                                    window.location.href = `/focus/day/${raw.session_id}`;
                                 }
                                 return;
                             }
+
+                            // Year View: Click to drill down to Month
+                            if (currentViewType === 'year') {
+                                const monthIndex = index;
+                                const year = currentViewDate.getFullYear();
+                                currentViewDate = new Date(year, monthIndex, 1);
+                                switchView('month');
+                                return;
+                            }
+
+                            // Normal chart click (no week bar interaction here, treated below)
 
                             // Standard session
                             const id = sessionIds[index];
                             if (id) {
                                 window.location.href = `/dashboard/${id}?edit=true`;
                             }
-                        }
-                    },
-                    onHover: (event, chartElement) => {
-                        if (chartElement.length > 0 && sessionIds) {
-                            const index = chartElement[0].index;
-                            if (sessionIds[index]) {
-                                event.native.target.style.cursor = 'pointer';
-                                return;
-                            }
-                        }
-                        event.native.target.style.cursor = 'default';
-                    },
-                    scales: {
-                        y: {
-                            stacked: false, // Don't stack floating bars
-                            min: 7,
-                            max: 20,
-                            grid: { color: '#334155' },
-                            ticks: {
-                                color: '#94a3b8',
-                                stepSize: 1,
-                                callback: function (value) {
-                                    return value + ':00';
-                                }
-                            }
-                        },
-                        x: {
-                            stacked: !showFocusSessions,
-                            grid: { display: false },
-                            ticks: { color: '#94a3b8' }
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function (context) {
-                                    const raw = context.raw;
-                                    if (!raw) return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + 'h';
+                        } else {
+                            // Maybe clicked on Week Bar (Month View)
+                            if (currentViewType === 'month' && chartInstance.weekZones) {
+                                const { x, y } = e; // coordinate relative to canvas
+                                const zone = chartInstance.weekZones.find(z =>
+                                    x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h
+                                );
 
-                                    if (raw.task_name) {
-                                        const timeStr = formatHour(raw.y[0]) + ' - ' + formatHour(raw.y[1]);
-                                        const tagsStr = (raw.tags && raw.tags.length > 0) ? ` [${raw.tags.join(', ')}]` : '';
-                                        return [`${raw.task_name}${tagsStr}`, timeStr];
-                                    }
-
-                                    const yRange = Array.isArray(raw) ? raw : (raw.y || null);
-                                    if (!yRange) return context.dataset.label;
-
-                                    const timeStr = formatHour(yRange[0]) + ' - ' + formatHour(yRange[1]);
-
-                                    if (sessionIds && sessionIds[context.dataIndex]) {
-                                        return [timeStr, `(${i18n['click_to_edit']})`];
-                                    }
-                                    return timeStr;
-                                }
-                            }
-                        },
-                        legend: {
-                            labels: {
-                                color: '#f8fafc',
-                                filter: function (item, chart) {
-                                    return [i18n['work'], i18n['vacation'], i18n['sick']].includes(item.text);
+                                if (zone) {
+                                    const year = currentViewDate.getFullYear();
+                                    const month = currentViewDate.getMonth();
+                                    // Navigate to the start day of that week
+                                    currentViewDate = new Date(year, month, zone.startDay);
+                                    switchView('week');
                                 }
                             }
                         }
                     }
+                },
+                onHover: (event, chartElement) => {
+                    if (chartElement.length > 0 && sessionIds) {
+                        const index = chartElement[0].index;
+                        if (sessionIds[index]) {
+                            event.native.target.style.cursor = 'pointer';
+                            return;
+                        }
+                    }
+                    event.native.target.style.cursor = 'default';
+                },
+                scales: {
+                    y: {
+                        stacked: false, // Don't stack floating bars
+                        min: 7,
+                        max: 20,
+                        grid: { color: '#334155' },
+                        ticks: {
+                            color: '#94a3b8',
+                            stepSize: 1,
+                            callback: function (value) {
+                                return value + ':00';
+                            }
+                        }
+                    },
+                    x: {
+                        stacked: !showFocusSessions,
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8' }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const raw = context.raw;
+                                if (!raw) return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + 'h';
+
+                                if (raw.task_name) {
+                                    const timeStr = formatHour(raw.y[0]) + ' - ' + formatHour(raw.y[1]);
+                                    const tagsStr = (raw.tags && raw.tags.length > 0) ? ` [${raw.tags.join(', ')}]` : '';
+                                    return [`${raw.task_name}${tagsStr}`, timeStr];
+                                }
+
+                                const yRange = Array.isArray(raw) ? raw : (raw.y || null);
+                                if (!yRange) return context.dataset.label;
+
+                                const timeStr = formatHour(yRange[0]) + ' - ' + formatHour(yRange[1]);
+
+                                if (sessionIds && sessionIds[context.dataIndex]) {
+                                    return [timeStr, `(${i18n['click_to_edit']})`];
+                                }
+                                return timeStr;
+                            }
+                        }
+                    },
+                    legend: {
+                        labels: {
+                            color: '#f8fafc',
+                            filter: function (item, chart) {
+                                return [i18n['work'], i18n['vacation'], i18n['sick']].includes(item.text);
+                            }
+                        }
+                    }
                 }
+            },
+                plugins: [{
+                    id: 'weekNav',
+                    afterDatasetsDraw: (chart) => {
+                        if (currentViewType !== 'month') return;
+
+                        const { ctx, chartArea: { left, right, bottom, width }, scales: { x } } = chart;
+                        const yPos = bottom + 25; // Position below axis labels
+                        const height = 18;
+
+                        // Calculate week groups
+                        const daysInMonth = chart.data.labels.length;
+                        const year = currentViewDate.getFullYear();
+                        const month = currentViewDate.getMonth();
+
+                        const weeks = [];
+                        let currentWeek = null;
+                        let startIdx = 0;
+
+                        for (let i = 0; i < daysInMonth; i++) {
+                            const d = new Date(year, month, i + 1);
+                            const wNum = getWeekNumber(d);
+
+                            if (currentWeek === null) {
+                                currentWeek = wNum;
+                                startIdx = i;
+                            } else if (wNum !== currentWeek) {
+                                weeks.push({ week: currentWeek, start: startIdx, end: i - 1 });
+                                currentWeek = wNum;
+                                startIdx = i;
+                            }
+                        }
+                        // Add last week
+                        weeks.push({ week: currentWeek, start: startIdx, end: daysInMonth - 1 });
+
+                        chart.weekZones = [];
+
+                        ctx.save();
+                        ctx.font = '10px Inter';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+
+                        // Determine bar width per unit
+                        // Approximate width of one day slot
+                        const slotWidth = width / daysInMonth;
+
+                        weeks.forEach(w => {
+                            const xStart = x.getPixelForValue(w.start) - slotWidth / 2 + 1; // +1 gap
+                            const xEnd = x.getPixelForValue(w.end) + slotWidth / 2 - 1;   // -1 gap
+                            const wWidth = xEnd - xStart;
+
+                            // Draw Pill
+                            ctx.fillStyle = 'rgba(56, 189, 248, 0.15)'; // Blue tint
+                            ctx.beginPath();
+                            ctx.roundRect(xStart, yPos, wWidth, height, 4);
+                            ctx.fill();
+
+                            // Draw Text
+                            ctx.fillStyle = '#38bdf8';
+                            ctx.fillText(`W${w.week}`, xStart + wWidth / 2, yPos + height / 2);
+
+                            // Store click zone (day is index + 1)
+                            chart.weekZones.push({
+                                x: xStart, y: yPos, w: wWidth, h: height,
+                                startDay: w.start + 1, week: w.week
+                            });
+                        });
+
+                        ctx.restore();
+                    }
+                }]
             });
-        }
+        */ }
 
         function renderChart(labels, datasetsData, sessionIds, todayIndex, dayStatuses, sessionData) {
             const ctx = document.getElementById('metricsChart').getContext('2d');
@@ -1491,145 +1587,294 @@
                 'sick': '#a78bfa'     // Violet
             };
 
-            // Create base datasets (worked hours in transparent grey when focus sessions are shown)
-            const datasets = datasetsData.map((data, idx) => ({
-                label: i18n['working_time'],
-                data: data,
-                backgroundColor: showFocusSessions ?
-                    dayStatuses.map(s => (s === 'work' || !s) ? 'rgba(148, 163, 184, 0.3)' : (colors[s] || colors['work'])) :
-                    (dayStatuses ? dayStatuses.map(s => colors[s] || colors['work']) : '#38bdf8'),
-                borderRadius: 4,
-                borderSkipped: false,
-                grouped: !showFocusSessions, // Disable grouping to allow overlap and full width
-                order: showFocusSessions ? 2 : 1
-            }));
+            // Fetch tags for colors before rendering
+            fetch('/api/tags')
+                .then(res => res.json())
+                .then(tags => {
+                    const tagColors = {};
+                    tags.forEach(t => tagColors[t.name] = t.color);
+                    tagColors[i18n['untagged']] = '#94a3b8';
 
-            let finalDatasets = [...datasets];
+                    function createHashedPattern(colors) {
+                        if (!colors || colors.length === 0) return '#94a3b8';
+                        if (colors.length === 1) return colors[0];
 
-            // Add focus session datasets if enabled
-            if (showFocusSessions && sessionData) {
-                // Fetch tag colors first
-                fetch('/api/tags')
-                    .then(res => res.json())
-                    .then(tags => {
-                        const tagColors = {};
-                        tags.forEach(tag => {
-                            tagColors[tag.name] = tag.color;
-                        });
+                        const stripeCount = colors.length;
+                        const stripeSize = 10;
+                        const size = stripeSize * stripeCount * 2;
+                        const canvas = document.createElement('canvas');
+                        canvas.width = size;
+                        canvas.height = size;
+                        const tctx = canvas.getContext('2d');
 
-                        function createHashedPattern(colors) {
-                            if (!colors || colors.length === 0) return '#94a3b8';
-                            if (colors.length === 1) return colors[0];
-
-                            const stripeCount = colors.length;
-                            const stripeSize = 10;
-                            const size = stripeSize * stripeCount * 2;
-                            const canvas = document.createElement('canvas');
-                            canvas.width = size;
-                            canvas.height = size;
-                            const tctx = canvas.getContext('2d');
-
-                            // Create equal diagonal stripes
-                            for (let i = -stripeCount * 2; i < stripeCount * 2; i++) {
-                                tctx.fillStyle = colors[Math.abs(i) % stripeCount];
-                                tctx.beginPath();
-                                tctx.moveTo(i * stripeSize, 0);
-                                tctx.lineTo((i + 1) * stripeSize, 0);
-                                tctx.lineTo((i + 1) * stripeSize + size, size);
-                                tctx.lineTo(i * stripeSize + size, size);
-                                tctx.closePath();
-                                tctx.fill();
-                            }
-                            return tctx.createPattern(canvas, 'repeat');
+                        // Create equal diagonal stripes
+                        for (let i = -stripeCount * 2; i < stripeCount * 2; i++) {
+                            tctx.fillStyle = colors[Math.abs(i) % stripeCount];
+                            tctx.beginPath();
+                            tctx.moveTo(i * stripeSize, 0);
+                            tctx.lineTo((i + 1) * stripeSize, 0);
+                            tctx.lineTo((i + 1) * stripeSize + size, size);
+                            tctx.lineTo(i * stripeSize + size, size);
+                            tctx.closePath();
+                            tctx.fill();
                         }
+                        return tctx.createPattern(canvas, 'repeat');
+                    }
 
-                        // Group focus sessions by tag
-                        const focusByTag = {};
+                    // Create base datasets
+                    const datasets = datasetsData.map((data, idx) => ({
+                        label: i18n['working_time'],
+                        data: data,
+                        backgroundColor: showFocusSessions ?
+                            dayStatuses.map(s => (s === 'work' || !s) ? 'rgba(148, 163, 184, 0.3)' : (colors[s] || colors['work'])) :
+                            (dayStatuses ? dayStatuses.map(s => colors[s] || colors['work']) : '#38bdf8'),
+                        borderRadius: 4,
+                        borderSkipped: false,
+                        grouped: !showFocusSessions,
+                        order: showFocusSessions ? 2 : 1
+                    }));
 
-                        sessionData.forEach((session, dayIndex) => {
+                    // Add Focus Sessions dataset if enabled
+                    if (showFocusSessions && sessionData) {
+                        const focusData = [];
+                        const focusBackgroundColors = [];
+
+                        // Align focus data with chart labels
+                        sessionData.forEach((session, i) => {
                             if (session && session.focus_sessions) {
                                 session.focus_sessions.forEach(fs => {
-                                    const tags = (fs.tags && fs.tags.length > 0) ? fs.tags : [i18n['untagged']];
-                                    const primaryTag = tags[0];
+                                    const fsTags = (fs.tags && fs.tags.length > 0) ? fs.tags : [i18n['untagged']];
+                                    let bg;
 
-                                    if (primaryTag && fs.start_hour !== undefined && fs.end_hour !== undefined) {
-                                        if (!focusByTag[primaryTag]) {
-                                            focusByTag[primaryTag] = [];
-                                        }
-
-                                        let bg;
-                                        if (tags.length > 1) {
-                                            const colors = tags.map(t => tagColors[t] || '#38bdf8');
-                                            bg = createHashedPattern(colors);
-                                        } else {
-                                            bg = tagColors[primaryTag] || '#38bdf8';
-                                        }
-
-                                        focusByTag[primaryTag].push({
-                                            x: labels[dayIndex],
-                                            y: [fs.start_hour, fs.end_hour],
-                                            duration: fs.duration,
-                                            task_name: fs.task_name,
-                                            tags: tags,
-                                            id: fs.id,
-                                            session_id: fs.session_id,
-                                            task_id: fs.task_id,
-                                            backgroundColor: bg
-                                        });
+                                    if (fsTags.length > 1) {
+                                        const c = fsTags.map(t => tagColors[t] || '#38bdf8');
+                                        bg = createHashedPattern(c);
+                                    } else {
+                                        bg = tagColors[fsTags[0]] || '#38bdf8';
                                     }
+
+                                    focusData.push({
+                                        x: labels[i], // Match x-axis label
+                                        y: [fs.start_hour, fs.end_hour],
+                                        task_id: fs.task_id,
+                                        task_name: fs.task_name,
+                                        tags: fsTags,
+                                        id: fs.id
+                                    });
+                                    focusBackgroundColors.push(bg);
                                 });
                             }
                         });
 
-                        const focusDatasets = Object.entries(focusByTag).map(([tag, data]) => ({
-                            label: tag,
-                            data: data,
-                            backgroundColor: data.map(d => d.backgroundColor),
-                            borderRadius: 4,
-                            borderSkipped: false,
-                            grouped: false, // Overlap
-                            order: 1 // Front
-                        }));
+                        if (focusData.length > 0) {
+                            datasets.push({
+                                label: i18n['focus'],
+                                data: focusData,
+                                backgroundColor: focusBackgroundColors,
+                                borderRadius: 4,
+                                borderSkipped: false,
+                                type: 'bar',
+                                grouped: false, // Ensure overlap
+                                order: 0
+                            });
+                        }
+                    }
 
-                        // Add dummy datasets for clean legend
-                        const workLegendColor = showFocusSessions ? 'rgba(148, 163, 184, 0.3)' : colors['work'];
-                        const legendDatasets = [
-                            { label: i18n['work'], backgroundColor: workLegendColor, data: [], order: 3 },
-                            { label: i18n['vacation'], backgroundColor: colors['vacation'], data: [], order: 3 },
-                            { label: i18n['sick'], backgroundColor: colors['sick'], data: [], order: 3 }
-                        ];
+                    chartInstance = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: 'x',
+                            onClick: (e, elements) => {
+                                if (elements && elements.length > 0) {
+                                    const index = elements[0].index;
 
-                        const allDatasets = [...datasets, ...focusDatasets, ...legendDatasets];
+                                    // Year View: Click to drill down to Month
+                                    if (currentViewType === 'year') {
+                                        const monthIndex = index;
+                                        const year = currentViewDate.getFullYear();
+                                        currentViewDate = new Date(year, monthIndex, 1);
+                                        switchView('month');
+                                        return;
+                                    }
 
-                        // Re-render chart with focus data
-                        renderChartWithDatasets(ctx, labels, allDatasets, sessionIds, todayIndex);
-                    })
-                    .catch(err => {
-                        console.error('Failed to load tag colors:', err);
-                        // Fallback to rendering without focus sessions
-                        const workLegendColor = showFocusSessions ? 'rgba(148, 163, 184, 0.3)' : colors['work'];
-                        const legendDatasets = [
-                            { label: i18n['work'], backgroundColor: workLegendColor, data: [], order: 3 },
-                            { label: i18n['vacation'], backgroundColor: colors['vacation'], data: [], order: 3 },
-                            { label: i18n['sick'], backgroundColor: colors['sick'], data: [], order: 3 }
-                        ];
-                        const allDatasets = [...datasets, ...legendDatasets];
-                        renderChartWithDatasets(ctx, labels, allDatasets, sessionIds, todayIndex);
+                                    // Normal session click logic
+                                    const datasetIndex = elements[0].datasetIndex;
+                                    const dataset = datasets[datasetIndex];
+
+                                    // Check if focus session
+                                    if (dataset.label === i18n['focus']) {
+                                        // elements[0].element.$context.raw is the actual data object clicked
+                                        const raw = elements[0].element.$context.raw;
+                                        if (raw && raw.task_id) {
+                                            window.location.href = `/focus/task/${raw.task_id}`;
+                                            return;
+                                        }
+                                    }
+
+                                    const id = sessionIds[index];
+                                    if (id) {
+                                        window.location.href = `/dashboard/${id}?edit=true`;
+                                    }
+                                } else {
+                                    // Week Bar Click (Month View)
+                                    if (currentViewType === 'month' && chartInstance.weekZones) {
+                                        const { x, y } = e;
+                                        const zone = chartInstance.weekZones.find(z =>
+                                            x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h
+                                        );
+
+                                        if (zone) {
+                                            const year = currentViewDate.getFullYear();
+                                            const month = currentViewDate.getMonth();
+                                            currentViewDate = new Date(year, month, zone.startDay);
+                                            switchView('week');
+                                        }
+                                    }
+                                }
+                            },
+                            onHover: (event, chartElement) => {
+                                const target = event.native.target;
+                                let tooltipEl = document.getElementById('week-chart-tooltip');
+                                if (!tooltipEl) {
+                                    tooltipEl = document.createElement('div');
+                                    tooltipEl.id = 'week-chart-tooltip';
+                                    Object.assign(tooltipEl.style, {
+                                        position: 'fixed',
+                                        background: 'rgba(30, 41, 59, 0.95)',
+                                        color: '#f8fafc',
+                                        borderRadius: '4px',
+                                        padding: '6px 12px',
+                                        fontFamily: 'Inter, sans-serif',
+                                        fontSize: '12px',
+                                        pointerEvents: 'none',
+                                        zIndex: '9999',
+                                        display: 'none',
+                                        transform: 'translate(-50%, -120%)',
+                                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2)'
+                                    });
+                                    document.body.appendChild(tooltipEl);
+                                }
+                                tooltipEl.style.display = 'none';
+
+                                if (chartElement.length > 0) {
+                                    target.style.cursor = 'pointer';
+                                    return;
+                                }
+
+                                if (currentViewType === 'month' && chartInstance.weekZones) {
+                                    const { x, y } = event;
+                                    const zone = chartInstance.weekZones.find(z =>
+                                        x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h
+                                    );
+                                    if (zone) {
+                                        target.style.cursor = 'pointer';
+                                        tooltipEl.innerHTML = `<strong>Week ${zone.week}</strong>`;
+                                        tooltipEl.style.display = 'block';
+                                        tooltipEl.style.left = event.native.clientX + 'px';
+                                        tooltipEl.style.top = event.native.clientY + 'px';
+                                        return;
+                                    }
+                                }
+                                target.style.cursor = 'default';
+                            },
+                            scales: {
+                                y: {
+                                    stacked: false,
+                                    min: 7, max: 20,
+                                    grid: { color: '#334155' },
+                                    ticks: { color: '#94a3b8', stepSize: 1, callback: val => val + ':00' }
+                                },
+                                x: {
+                                    stacked: !showFocusSessions,
+                                    grid: { display: false },
+                                    ticks: { color: '#94a3b8' }
+                                }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (context) {
+                                            const raw = context.raw;
+                                            if (raw.task_name) {
+                                                const tagsStr = (raw.tags && raw.tags.length > 0) ? ` [${raw.tags.join(', ')}]` : '';
+                                                return [`${raw.task_name}${tagsStr}`, `${formatHour(raw.y[0])} - ${formatHour(raw.y[1])}`];
+                                            }
+                                            const yRange = Array.isArray(raw) ? raw : (raw.y || null);
+                                            if (yRange) {
+                                                return `${formatHour(yRange[0])} - ${formatHour(yRange[1])}`;
+                                            }
+                                            return context.formattedValue;
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        plugins: [{
+                            id: 'weekNav',
+                            afterDatasetsDraw: (chart) => {
+                                if (currentViewType !== 'month') return;
+                                const { ctx, chartArea: { width }, scales: { x, y } } = chart;
+                                const y7 = y.getPixelForValue(7);
+                                const barHeight = 24;
+                                const yPos = y7 - barHeight;
+                                const daysInMonth = chart.data.labels.length;
+                                const year = currentViewDate.getFullYear();
+                                const month = currentViewDate.getMonth();
+                                const weeks = [];
+                                let curWeek = null;
+                                let startI = 0;
+                                for (let i = 0; i < daysInMonth; i++) {
+                                    const d = new Date(year, month, i + 1);
+                                    const w = getWeekNumber(d);
+                                    if (curWeek === null) { curWeek = w; startI = i; }
+                                    else if (w !== curWeek) {
+                                        weeks.push({ w: curWeek, s: startI, e: i - 1 });
+                                        curWeek = w; startI = i;
+                                    }
+                                }
+                                weeks.push({ w: curWeek, s: startI, e: daysInMonth - 1 });
+                                chart.weekZones = [];
+                                const slotWidth = width / daysInMonth;
+                                ctx.save();
+                                ctx.font = 'bold 11px Inter';
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                weeks.forEach(item => {
+                                    const xStart = x.getPixelForValue(item.s) - slotWidth / 2 + 2;
+                                    const xEnd = x.getPixelForValue(item.e) + slotWidth / 2 - 2;
+                                    const w = xEnd - xStart;
+                                    ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+                                    ctx.beginPath();
+                                    ctx.rect(xStart, yPos, w, barHeight);
+                                    ctx.fill();
+                                    ctx.fillStyle = '#0ea5e9';
+                                    ctx.fillText(`W${item.w}`, xStart + w / 2, yPos + barHeight / 2);
+                                    chart.weekZones.push({
+                                        x: xStart, y: yPos, w: w, h: barHeight,
+                                        startDay: item.s + 1,
+                                        week: item.w
+                                    });
+                                });
+                                ctx.restore();
+                            }
+                        }]
                     });
-                return; // Exit early, will render async
-            }
-
-            // Add dummy datasets for clean legend
-            const legendDatasets = [
-                { label: i18n['work'], backgroundColor: colors['work'], data: [] },
-                { label: i18n['vacation'], backgroundColor: colors['vacation'], data: [] },
-                { label: i18n['sick'], backgroundColor: colors['sick'], data: [] }
-            ];
-
-            finalDatasets = [...datasets, ...legendDatasets];
-
-            renderChartWithDatasets(ctx, labels, finalDatasets, sessionIds, todayIndex);
+                })
+                .catch(err => {
+                    console.error('Failed to init chart', err);
+                    // Fallback to basic chart without tags if error?
+                    // Just log it.
+                });
         }
+
+
 
         function formatTableTimes() {
             document.querySelectorAll('.time-cell').forEach(cell => {

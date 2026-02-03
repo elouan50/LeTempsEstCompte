@@ -104,11 +104,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;"
             class="shield-dim">
             <h1>
-                {% if task %}
                 {{ t['focus_title_task'] }} — {{ task.description }}
-                {% else %}
-                {{ t['focus_title_day'] }}
-                {% endif %}
             </h1>
             <a href="/dashboard/{{ session.id }}" class="btn btn-secondary">{{ t['back'] }}</a>
         </div>

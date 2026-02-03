@@ -24,6 +24,11 @@ class Tag(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
     color = db.Column(db.String(7), default="#38bdf8") # Hex color
 
+class SuperTag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    color = db.Column(db.String(7), unique=True, nullable=False) # Hex color group
+    name = db.Column(db.String(50), nullable=False)
+
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('daily_session.id'), nullable=False)
@@ -45,7 +50,7 @@ class Pause(db.Model):
 class FocusSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('daily_session.id'), nullable=False)
-    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
     start_time = db.Column(db.DateTime, default=datetime.now)
     end_time = db.Column(db.DateTime, nullable=True)
     pomodoro_mode = db.Column(db.String(10), nullable=True)  # "50/10" or "75/15"
