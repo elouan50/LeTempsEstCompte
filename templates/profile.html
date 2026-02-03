@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t['profile'] }} - {{ t['app_name'] }}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        const i18n = {{ t | tojson | safe }};
+    </script>
+    <style>
+        .profile-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .profile-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 4rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle background decoration */
+        .profile-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            background: linear-gradient(180deg, rgba(56, 189, 248, 0.05) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .avatar-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .profile-avatar-large {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), #0ea5e9);
+            border: 4px solid var(--bg-card);
+            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            color: white;
+            font-weight: 700;
+        }
+
+        .full-name-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .seamless-input {
+            background: transparent;
+            border: 2px solid transparent;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            border-radius: 12px;
+            padding: 0.5rem 1rem;
+            min-width: 150px;
+            flex: 1;
+            transition: all 0.2s ease;
+        }
+
+        .seamless-input:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .seamless-input:focus {
+            outline: none;
+            background: var(--bg-card);
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .seamless-input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.3;
+            font-weight: 500;
+        }
+
+        .meta-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .date-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.5rem 1rem;
+            border-radius: 99px;
+            /* Pill shape */
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .date-input-wrapper:hover,
+        .date-input-wrapper:focus-within {
+            background: var(--bg-card);
+            border-color: var(--border);
+            color: var(--text);
+        }
+
+        .seamless-date {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-family: inherit;
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+
+        .seamless-date:focus {
+            outline: none;
+        }
+
+        /* Birthday Icon */
+        .icon-gift {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+            opacity: 0.7;
+        }
+
+        .save-indicator {
+            height: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--success);
+            opacity: 0;
+            transition: opacity 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-icon:hover {
+            color: var(--text);
+            border-color: var(--text-secondary);
+            transform: translateY(-1px);
+        }
+
+        /* Lang switcher override */
+        .lang-trigger {
+            background: var(--bg-secondary) !important;
+            border-color: var(--border) !important;
+            height: 40px;
+            padding: 0 1rem !important;
+            border-radius: 20px !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="profile-container">
+        <!-- Header -->
+        <div class="header-bar">
+            <h1 style="font-size: 1.5rem; margin: 0; font-weight: 700;">{{ t['profile'] }}</h1>
+            <div class="header-actions">
+                <!-- Language Switcher -->
+                <div class="lang-switcher" style="display: flex; align-items: center;">
+                    <details class="action-details">
+                        <summary class="btn btn-secondary btn-sm"
+                            style="padding: 0.5rem 0.75rem; display: flex; align-items: center;">
+                            <svg class="lang-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                            </svg>
+                            {{ lang | upper }} <span style="font-size: 0.7rem; margin-left: 0.25rem;">▼</span>
+                        </summary>
+                        <div class="action-menu-content">
+                            <a href="/set_language/en"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇬🇧</span>
+                                English</a>
+                            <a href="/set_language/de"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇩🇪</span>
+                                Deutsch</a>
+                            <a href="/set_language/fr"
+                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇫🇷</span>
+                                Français</a>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Home Button -->
+                <a href="/" class="btn-icon" title="{{ t['back_to_dashboard'] }}">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                </a>
+            </div>
+        </div>
+
+        <!-- Card -->
+        <div class="profile-card">
+            <div class="avatar-container">
+                <div class="profile-avatar-large">
+                    {{ user.first_name[0] if user.first_name else 'U' }}
+                </div>
+            </div>
+
+            <div class="first-name">
+                <div for="firstName" style="text-align: center; width: 100%; opacity: 0.5;">{{ t['first_name']
+                    }}</div>
+                <input type="text" id="firstName" class="seamless-input" value="{{ user.first_name or '' }}"
+                    placeholder="{{ t['first_name'] }}" oninput="autoSave()">
+            </div>
+
+            <div class="last-name">
+                <div for="lastName" style="text-align: center; width: 100%; opacity: 0.5;">{{
+                    t['last_name']
+                    }}</div>
+                <input type="text" id="lastName" class="seamless-input" value="{{ user.last_name or '' }}"
+                    placeholder="{{ t['last_name'] }}" oninput="autoSave()">
+            </div>
+
+            <div class="meta-group">
+                <div class="date-input-wrapper">
+                    <svg class="icon-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 12 20 22 4 22 4 12"></polyline>
+                        <rect x="2" y="7" width="20" height="5"></rect>
+                        <line x1="12" y1="22" x2="12" y2="7"></line>
+                        <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
+                        <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
+                    </svg>
+                    <input type="date" id="birthday" class="seamless-date" value="{{ user.birthday or '' }}"
+                        title="{{ t['birthday_optional'] }}" onchange="autoSave()">
+                </div>
+
+                <div id="saveStatus" class="save-indicator">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    {{ t.get('saved', 'Saved') }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.action-details')) {
+                document.querySelectorAll('.action-details[open]').forEach(el => {
+                    el.removeAttribute('open');
+                });
+            }
+        });
+
+        let timeoutId;
+
+        function autoSave() {
+            const statusEl = document.getElementById('saveStatus');
+            statusEl.style.opacity = '0';
+            statusEl.style.color = 'var(--success)';
+
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(async () => {
+                const firstName = document.getElementById('firstName').value;
+                const lastName = document.getElementById('lastName').value;
+                const birthday = document.getElementById('birthday').value;
+
+                try {
+                    const res = await fetch('/api/profile/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            first_name: firstName,
+                            last_name: lastName,
+                            birthday: birthday
+                        })
+                    });
+
+                    if (res.ok) {
+                        statusEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> {{ t.get('saved', 'Saved') }}`;
+                        statusEl.style.opacity = '1';
+
+                        // Update avatar text
+                        const avatarEl = document.querySelector('.profile-avatar-large');
+                        if (firstName && firstName.trim().length > 0) {
+                            avatarEl.innerText = firstName.trim()[0].toUpperCase();
+                        } else {
+                            avatarEl.innerText = 'U';
+                        }
+                    } else {
+                        throw new Error('Save failed');
+                    }
+                } catch (e) {
+                    console.error("Auto-save failed", e);
+                    statusEl.innerText = "{{ t.get('error_saving', 'Error saving') }}";
+                    statusEl.style.color = "var(--danger)";
+                    statusEl.style.opacity = '1';
+                }
+            }, 600);
+        }
+    </script>
+</body>
+
+</html>

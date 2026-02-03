@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, make_response
-from models import db, DailySession, Task, Pause, FocusSession, FocusPause, Tag, SuperTag
+from models import db, DailySession, Task, Pause, FocusSession, FocusPause, Tag, SuperTag, UserProfile
 from datetime import datetime, timedelta, date
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -65,9 +65,73 @@ def set_language(lang):
 @app.route('/')
 def index():
     sessions = DailySession.query.order_by(DailySession.date.desc()).all()
-    response = make_response(render_template('metrics.html', sessions=sessions))
+    
+    # Get user birthday for timeline
+    user = UserProfile.query.first()
+    birthday_md = None
+    if user and user.birthday:
+        birthday_md = user.birthday.strftime('%m-%d')
+        
+    response = make_response(render_template('metrics.html', sessions=sessions, birthday_md=birthday_md))
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
+
+
+@app.route('/profile')
+def profile():
+    # Calculate global stats
+    total_sessions = DailySession.query.count()
+    total_tasks = Task.query.count()
+    completed_tasks = Task.query.filter_by(is_completed=True).count()
+    
+    completion_rate = 0
+    if total_tasks > 0:
+        completion_rate = int((completed_tasks / total_tasks) * 100)
+        
+    # Get "Join Date" (Date of first session)
+    first_session = DailySession.query.order_by(DailySession.date.asc()).first()
+    join_date = first_session.date.strftime('%Y-%m-%d') if first_session else datetime.now().strftime('%Y-%m-%d')
+    
+    # Get User Profile
+    user = UserProfile.query.first()
+    if not user:
+        user = UserProfile(first_name="", last_name="")
+        db.session.add(user)
+        db.session.commit()
+    
+    return render_template('profile.html', 
+                           total_sessions=total_sessions, 
+                           total_tasks=total_tasks, 
+                           completed_tasks=completed_tasks,
+                           completion_rate=completion_rate,
+                           join_date=join_date,
+                           user=user)
+
+@app.route('/api/profile/update', methods=['POST'])
+def update_profile():
+    data = request.json
+    first_name = data.get('first_name')
+    last_name = data.get('last_name')
+    birthday = data.get('birthday')
+    
+    user = UserProfile.query.first()
+    if not user:
+        user = UserProfile()
+        db.session.add(user)
+        
+    user.first_name = first_name.strip() if first_name else ""
+    user.last_name = last_name.strip() if last_name else ""
+    
+    if birthday:
+        try:
+            user.birthday = datetime.strptime(birthday, '%Y-%m-%d').date()
+        except ValueError:
+            pass # Invalid date, ignore
+    else:
+        user.birthday = None
+        
+    db.session.commit()
+    return jsonify({'status': 'success'})
 
 @app.route('/new')
 def new_day_form():
@@ -1086,9 +1150,15 @@ def reports():
     last_day = calendar.monthrange(today.year, today.month)[1]
     default_end = today.replace(day=last_day)
     
+    user = UserProfile.query.first()
+    reporter_name = ""
+    if user and (user.first_name or user.last_name):
+        reporter_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+    
     return render_template('reports.html',
                            default_start=default_start.isoformat(),
-                           default_end=default_end.isoformat())
+                           default_end=default_end.isoformat(),
+                           reporter_name=reporter_name)
 
 @app.route('/reports/pdf', methods=['POST'])
 def reports_pdf():

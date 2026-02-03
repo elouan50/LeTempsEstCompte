@@ -63,3 +63,9 @@ class FocusPause(db.Model):
     focus_session_id = db.Column(db.Integer, db.ForeignKey('focus_session.id'), nullable=False)
     start_time = db.Column(db.DateTime, nullable=True)
     end_time = db.Column(db.DateTime, nullable=True)
+
+class UserProfile(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(100), nullable=True)
+    last_name = db.Column(db.String(100), nullable=True)
+    birthday = db.Column(db.Date, nullable=True)

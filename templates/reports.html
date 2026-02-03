@@ -55,8 +55,8 @@
             <form method="POST" action="/reports/pdf">
                 <div class="filter-group" style="margin-bottom: 1.5rem;">
                     <label>{{ t['reporter_name'] }}</label>
-                    <input type="text" name="reporter_name" class="input-field" value="{{ t['default_reporter_name'] }}"
-                        required>
+                    <input type="text" name="reporter_name" class="input-field"
+                        value="{{ reporter_name if reporter_name else t['default_reporter_name'] }}" required>
                 </div>
 
                 <div class="filter-group">

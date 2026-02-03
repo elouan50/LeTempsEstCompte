@@ -230,6 +230,7 @@
         const i18n = {{ t | tojson | safe }};
         const currentLang = "{{ lang }}";
         const SESSION_ID = null;
+        const BIRTHDAY_MD = "{{ birthday_md if birthday_md else '' }}";
 
         const cookieLang = document.cookie.split('; ').find(row => row.startsWith('lang='))?.split('=')[1];
         if (cookieLang && cookieLang !== currentLang && !sessionStorage.getItem('reloaded_for_lang')) {
@@ -248,7 +249,14 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
             <h1>{{ t['app_name'] }}</h1>
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; align-items: center;">
-                <div class="lang-switcher">
+                <div class="lang-switcher" style="display: flex; align-items: center;">
+                    <a href="/profile" class="btn btn-secondary btn-sm"
+                        style="padding: 0.5rem 0.75rem; display: flex; align-items: center; margin-right: 0.75rem;">
+                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+                            <path
+                                d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                        </svg>
+                    </a>
                     <details class="action-details">
                         <summary class="btn btn-secondary btn-sm"
                             style="padding: 0.5rem 0.75rem; display: flex; align-items: center;">
@@ -1369,211 +1377,6 @@
             }
         }
 
-        function renderChartWithDatasets_DEAD() {
-            return; /*
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
-
-            chartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: finalDatasets
-                },
-
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    indexAxis: 'x',
-                    onClick: (e, elements) => {
-                        if (elements && elements.length > 0) {
-                            const index = elements[0].index;
-                            const datasetIndex = elements[0].datasetIndex;
-                            const dataset = finalDatasets[datasetIndex];
-                            const raw = dataset.data[index];
-
-                            // If it's a focus session (object with id)
-                            if (raw && typeof raw === 'object' && raw.id) {
-                                if (raw.task_id) {
-                                    window.location.href = `/focus/task/${raw.task_id}`;
-                                }
-                                return;
-                            }
-
-                            // Year View: Click to drill down to Month
-                            if (currentViewType === 'year') {
-                                const monthIndex = index;
-                                const year = currentViewDate.getFullYear();
-                                currentViewDate = new Date(year, monthIndex, 1);
-                                switchView('month');
-                                return;
-                            }
-
-                            // Normal chart click (no week bar interaction here, treated below)
-
-                            // Standard session
-                            const id = sessionIds[index];
-                            if (id) {
-                                window.location.href = `/dashboard/${id}?edit=true`;
-                            }
-                        } else {
-                            // Maybe clicked on Week Bar (Month View)
-                            if (currentViewType === 'month' && chartInstance.weekZones) {
-                                const { x, y } = e; // coordinate relative to canvas
-                                const zone = chartInstance.weekZones.find(z =>
-                                    x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h
-                                );
-
-                                if (zone) {
-                                    const year = currentViewDate.getFullYear();
-                                    const month = currentViewDate.getMonth();
-                                    // Navigate to the start day of that week
-                                    currentViewDate = new Date(year, month, zone.startDay);
-                                    switchView('week');
-                                }
-                            }
-                        }
-                    }
-                },
-                onHover: (event, chartElement) => {
-                    if (chartElement.length > 0 && sessionIds) {
-                        const index = chartElement[0].index;
-                        if (sessionIds[index]) {
-                            event.native.target.style.cursor = 'pointer';
-                            return;
-                        }
-                    }
-                    event.native.target.style.cursor = 'default';
-                },
-                scales: {
-                    y: {
-                        stacked: false, // Don't stack floating bars
-                        min: 7,
-                        max: 20,
-                        grid: { color: '#334155' },
-                        ticks: {
-                            color: '#94a3b8',
-                            stepSize: 1,
-                            callback: function (value) {
-                                return value + ':00';
-                            }
-                        }
-                    },
-                    x: {
-                        stacked: !showFocusSessions,
-                        grid: { display: false },
-                        ticks: { color: '#94a3b8' }
-                    }
-                },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                const raw = context.raw;
-                                if (!raw) return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + 'h';
-
-                                if (raw.task_name) {
-                                    const timeStr = formatHour(raw.y[0]) + ' - ' + formatHour(raw.y[1]);
-                                    const tagsStr = (raw.tags && raw.tags.length > 0) ? ` [${raw.tags.join(', ')}]` : '';
-                                    return [`${raw.task_name}${tagsStr}`, timeStr];
-                                }
-
-                                const yRange = Array.isArray(raw) ? raw : (raw.y || null);
-                                if (!yRange) return context.dataset.label;
-
-                                const timeStr = formatHour(yRange[0]) + ' - ' + formatHour(yRange[1]);
-
-                                if (sessionIds && sessionIds[context.dataIndex]) {
-                                    return [timeStr, `(${i18n['click_to_edit']})`];
-                                }
-                                return timeStr;
-                            }
-                        }
-                    },
-                    legend: {
-                        labels: {
-                            color: '#f8fafc',
-                            filter: function (item, chart) {
-                                return [i18n['work'], i18n['vacation'], i18n['sick']].includes(item.text);
-                            }
-                        }
-                    }
-                }
-            },
-                plugins: [{
-                    id: 'weekNav',
-                    afterDatasetsDraw: (chart) => {
-                        if (currentViewType !== 'month') return;
-
-                        const { ctx, chartArea: { left, right, bottom, width }, scales: { x } } = chart;
-                        const yPos = bottom + 25; // Position below axis labels
-                        const height = 18;
-
-                        // Calculate week groups
-                        const daysInMonth = chart.data.labels.length;
-                        const year = currentViewDate.getFullYear();
-                        const month = currentViewDate.getMonth();
-
-                        const weeks = [];
-                        let currentWeek = null;
-                        let startIdx = 0;
-
-                        for (let i = 0; i < daysInMonth; i++) {
-                            const d = new Date(year, month, i + 1);
-                            const wNum = getWeekNumber(d);
-
-                            if (currentWeek === null) {
-                                currentWeek = wNum;
-                                startIdx = i;
-                            } else if (wNum !== currentWeek) {
-                                weeks.push({ week: currentWeek, start: startIdx, end: i - 1 });
-                                currentWeek = wNum;
-                                startIdx = i;
-                            }
-                        }
-                        // Add last week
-                        weeks.push({ week: currentWeek, start: startIdx, end: daysInMonth - 1 });
-
-                        chart.weekZones = [];
-
-                        ctx.save();
-                        ctx.font = '10px Inter';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-
-                        // Determine bar width per unit
-                        // Approximate width of one day slot
-                        const slotWidth = width / daysInMonth;
-
-                        weeks.forEach(w => {
-                            const xStart = x.getPixelForValue(w.start) - slotWidth / 2 + 1; // +1 gap
-                            const xEnd = x.getPixelForValue(w.end) + slotWidth / 2 - 1;   // -1 gap
-                            const wWidth = xEnd - xStart;
-
-                            // Draw Pill
-                            ctx.fillStyle = 'rgba(56, 189, 248, 0.15)'; // Blue tint
-                            ctx.beginPath();
-                            ctx.roundRect(xStart, yPos, wWidth, height, 4);
-                            ctx.fill();
-
-                            // Draw Text
-                            ctx.fillStyle = '#38bdf8';
-                            ctx.fillText(`W${w.week}`, xStart + wWidth / 2, yPos + height / 2);
-
-                            // Store click zone (day is index + 1)
-                            chart.weekZones.push({
-                                x: xStart, y: yPos, w: wWidth, h: height,
-                                startDay: w.start + 1, week: w.week
-                            });
-                        });
-
-                        ctx.restore();
-                    }
-                }]
-            });
-        */ }
-
         function renderChart(labels, datasetsData, sessionIds, todayIndex, dayStatuses, sessionData) {
             const ctx = document.getElementById('metricsChart').getContext('2d');
 
@@ -1631,7 +1434,23 @@
                         borderRadius: 4,
                         borderSkipped: false,
                         grouped: !showFocusSessions,
-                        order: showFocusSessions ? 2 : 1
+                        order: showFocusSessions ? 2 : 1,
+                        borderWidth: (context) => {
+                            const i = context.dataIndex;
+                            if (sessionData && sessionData[i] && BIRTHDAY_MD) {
+                                const d = sessionData[i].date; // ISO string 
+                                if (d && d.substring(5, 10) === BIRTHDAY_MD) return 2;
+                            }
+                            return 0;
+                        },
+                        borderColor: (context) => {
+                            const i = context.dataIndex;
+                            if (sessionData && sessionData[i] && BIRTHDAY_MD) {
+                                const d = sessionData[i].date;
+                                if (d && d.substring(5, 10) === BIRTHDAY_MD) return '#F59E0B'; // Gold/Amber
+                            }
+                            return 'transparent';
+                        }
                     }));
 
                     // Add Focus Sessions dataset if enabled
