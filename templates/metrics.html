@@ -96,7 +96,154 @@
             margin: 0;
         }
 
-        /* Tag Tasks Popup */
+        /* Detail Popup (Fixed) */
+        .detail-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 3000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .detail-popup-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .detail-card {
+            background: var(--card-bg);
+            /* Opaque background */
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 450px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+            overflow: hidden;
+        }
+
+        .detail-popup-overlay.active .detail-card {
+            transform: translateY(0);
+        }
+
+        .detail-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .detail-title-group h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: var(--text-primary);
+        }
+
+        .detail-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .close-detail {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .close-detail:hover {
+            color: var(--text-primary);
+        }
+
+        .detail-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .detail-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .detail-section h4 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin: 0 0 0.75rem 0;
+        }
+
+        .task-list-detailed {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .task-item-detailed {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .task-detail-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .task-detail-completed {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .task-detail-pending {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .detail-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Tag Tasks Popup (Keep for hover if needed) */
         .tag-tasks-popup {
             position: absolute;
             background: var(--bg-card);
@@ -565,7 +712,37 @@
         </div>
     </div>
 
-    <!-- Tag Tasks Popup -->
+    <!-- Detail Popup -->
+    <div id="detailPopup" class="detail-popup-overlay">
+        <div class="detail-card">
+            <div class="detail-header">
+                <div class="detail-title-group">
+                    <h3 id="detailTitle">Session Details</h3>
+                    <div id="detailSubtitle" class="detail-subtitle">Thursday 24 Oct, 2024</div>
+                </div>
+                <button class="close-detail" onclick="closeDetailPopup()">&times;</button>
+            </div>
+            <div class="detail-body">
+                <div class="detail-section">
+                    <h4>{{ t.get('summary', 'Summary') }}</h4>
+                    <div id="detailStatsSummary" style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+                        <!-- Stats go here -->
+                    </div>
+                </div>
+                <div class="detail-section">
+                    <h4>{{ t['tasks'] }}</h4>
+                    <ul id="detailTasksList" class="task-list-detailed">
+                        <!-- Tasks go here -->
+                    </ul>
+                </div>
+            </div>
+            <div class="detail-footer">
+                <a id="detailLink" href="#" class="btn btn-secondary btn-sm">{{ t['open_dashboard'] }}</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tag Tasks Small Popup (for Hover) -->
     <div id="tagTasksPopup" class="tag-tasks-popup">
         <h4 id="popupTagTitle"></h4>
         <ul id="popupTasksList"></ul>
@@ -1199,7 +1376,7 @@
                     });
 
                     // Render Charts with Supertag Data
-                    renderCharts(timeLabels, timeValues, timeColors, totalTimeMins, taskLabels, taskValues, taskColors, totalTasks, supertagTaskData);
+                    renderCharts(timeLabels, timeValues, timeColors, totalTimeMins, taskLabels, taskValues, taskColors, totalTasks, supertagTaskData, colorGroups);
 
                     // Render tag summary badges (grouped by color)
                     const tagSummary = document.getElementById('tagSummary');
@@ -1220,13 +1397,23 @@
 
                         pill.onclick = (e) => {
                             if (e.target.classList.contains('supertag-name')) return;
-                            const container = pill.querySelector('.subpill-container');
-                            if (container) {
-                                const isExpanded = container.style.display !== 'none';
-                                container.style.display = isExpanded ? 'none' : 'flex';
-                                pill.classList.toggle('expanded', !isExpanded);
-                            }
+
+                            // Show detailed fixed popup
+                            showSupertagDetails(group);
                         };
+
+                        // Add hover behavior
+                        pill.onmouseenter = (e) => {
+                            const tasks = [];
+                            group.subtags.forEach(st => {
+                                if (st.taskData && st.taskData.tasks) {
+                                    tasks.push(...st.taskData.tasks);
+                                }
+                            });
+                            showTagTasksPopup(group.name, tasks, e);
+                        };
+                        pill.onmousemove = (e) => updateTagTasksPopupPosition(e);
+                        pill.onmouseleave = () => hideTagTasksPopup();
 
                         pill.innerHTML = `
                             <div class="super-pill-header">
@@ -1246,14 +1433,6 @@
                             <div style="width: 100%; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; overflow: hidden; margin-top: 0.5rem;">
                                 <div style="width: ${completionRate}%; height: 100%; background: ${color}; transition: width 0.3s ease;"></div>
                             </div>
-                            <!-- Subtag pills container -->
-                            <div class="subpill-container" style="display: none;">
-                                ${group.subtags.map(st => `
-                                    <div class="subpill" style="border-color: ${color}30; color: ${color}CC;">
-                                        ${st.tag}
-                                    </div>
-                                `).join('')}
-                            </div>
                         `;
 
                         tagSummary.appendChild(pill);
@@ -1263,7 +1442,7 @@
         }
 
         // Helper to separate chart rendering from data grouping
-        function renderCharts(timeLabels, timeValues, timeColors, totalTimeMins, taskLabels, taskValues, taskColors, totalTasks, tagTaskData) {
+        function renderCharts(timeLabels, timeValues, timeColors, totalTimeMins, taskLabels, taskValues, taskColors, totalTasks, tagTaskData, colorGroups) {
             // Render time-based doughnut chart
             const ctxTime = document.getElementById('tagChartTime').getContext('2d');
             const canvasTime = document.getElementById('tagChartTime');
@@ -1288,6 +1467,17 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: true,
+                        onClick: (e, elements) => {
+                            if (elements && elements.length > 0) {
+                                const index = elements[0].index;
+                                const supertagName = timeLabels[index];
+                                const group = Object.values(colorGroups).find(g => g.name === supertagName);
+                                if (group) showSupertagDetails(group);
+                            }
+                        },
+                        onHover: (event, elements) => {
+                            event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+                        },
                         plugins: {
                             legend: { display: false },
                             tooltip: {
@@ -1352,6 +1542,17 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: true,
+                        onClick: (e, elements) => {
+                            if (elements && elements.length > 0) {
+                                const index = elements[0].index;
+                                const supertagName = taskLabels[index];
+                                const group = Object.values(colorGroups).find(g => g.name === supertagName);
+                                if (group) showSupertagDetails(group);
+                            }
+                        },
+                        onHover: (event, elements) => {
+                            event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+                        },
                         plugins: {
                             legend: { display: false },
                             tooltip: {
@@ -1538,7 +1739,12 @@
 
                                     const id = sessionIds[index];
                                     if (id) {
-                                        window.location.href = `/dashboard/${id}?edit=true`;
+                                        const session = sessionData[index];
+                                        if (session) {
+                                            showSessionDetails(session);
+                                        } else {
+                                            window.location.href = `/dashboard/${id}?edit=true`;
+                                        }
                                     }
                                 } else {
                                     // Week Bar Click (Month View)
@@ -1816,6 +2022,150 @@
                 }, 200);
             }
         }
+
+        // Detailed Popup Logic
+        function showSessionDetails(session) {
+            const popup = document.getElementById('detailPopup');
+            const title = document.getElementById('detailTitle');
+            const subtitle = document.getElementById('detailSubtitle');
+            const stats = document.getElementById('detailStatsSummary');
+            const tasksList = document.getElementById('detailTasksList');
+            const link = document.getElementById('detailLink');
+
+            const date = new Date(session.date);
+            const dateStr = date.toLocaleDateString(currentLang, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+            title.innerText = session.goal || i18n['working_day'];
+            subtitle.innerText = dateStr;
+
+            // Stats
+            const startH = getLocalHour(session.start_time);
+            const endH = getLocalHour(session.end_time);
+            const pauseH = getTotalPauseHours(session.pauses);
+            let workH = 0;
+            if (startH && endH) {
+                workH = Math.max(endH - startH - pauseH, 0);
+            }
+
+            stats.innerHTML = `
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['total_hours']}</div>
+                    <div style="font-weight: 600;">${Math.floor(workH)}h ${Math.round((workH % 1) * 60)}m</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['status']}</div>
+                    <div style="font-weight: 600; color: var(--accent);">${i18n[session.status] || session.status}</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['tasks']}</div>
+                    <div style="font-weight: 600;">${session.tasks.filter(t => t.is_completed).length} / ${session.tasks.length}</div>
+                </div>
+            `;
+
+            // Tasks
+            renderDetailedTasks(session.tasks, tasksList);
+
+            link.href = `/dashboard/${session.id}?edit=true`;
+            link.innerText = i18n['open_dashboard'];
+            link.style.display = 'inline-block';
+
+            popup.classList.add('active');
+        }
+
+        function showSupertagDetails(group) {
+            const popup = document.getElementById('detailPopup');
+            const title = document.getElementById('detailTitle');
+            const subtitle = document.getElementById('detailSubtitle');
+            const stats = document.getElementById('detailStatsSummary');
+            const tasksList = document.getElementById('detailTasksList');
+            const link = document.getElementById('detailLink');
+
+            title.innerText = group.name;
+            title.style.color = group.color;
+
+            // Subtags list
+            const subtagsStr = group.subtags.map(st => st.tag).join(', ');
+            subtitle.innerText = subtagsStr || 'No tags';
+
+            const hours = Math.floor(group.timeMins / 60);
+            const minutes = Math.round(group.timeMins % 60);
+
+            stats.innerHTML = `
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['total_hours']}</div>
+                    <div style="font-weight: 600;">${hours}h ${minutes}m</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['completion']}</div>
+                    <div style="font-weight: 600; color: #fff;">${Math.round(group.completed / group.total * 100 || 0)}%</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['tasks']}</div>
+                    <div style="font-weight: 600;">${Math.round(group.completed * 10) / 10} / ${Math.round(group.total * 10) / 10}</div>
+                </div>
+            `;
+
+            const allTasks = [];
+            group.subtags.forEach(st => {
+                if (st.taskData && st.taskData.tasks) {
+                    allTasks.push(...st.taskData.tasks);
+                }
+            });
+            renderDetailedTasks(allTasks, tasksList);
+
+            link.style.display = 'none';
+            popup.classList.add('active');
+        }
+
+        function renderDetailedTasks(tasks, container) {
+            container.innerHTML = '';
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = `<li style="color: var(--text-secondary); font-style: italic;">No tasks found</li>`;
+                return;
+            }
+
+            // Group duplicates
+            const taskMap = new Map();
+            tasks.forEach(t => {
+                const key = t.description;
+                if (!taskMap.has(key)) {
+                    taskMap.set(key, { ...t, count: 1 });
+                } else {
+                    taskMap.get(key).count++;
+                    if (t.is_completed) taskMap.get(key).is_completed = true;
+                }
+            });
+
+            Array.from(taskMap.values()).forEach(t => {
+                const li = document.createElement('li');
+                li.className = 'task-item-detailed';
+                li.innerHTML = `
+                    <div class="task-detail-status ${t.is_completed ? 'task-detail-completed' : 'task-detail-pending'}">
+                        ${t.is_completed ? '✓' : '✗'}
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="color: var(--text-primary); font-size: 0.95rem; line-height: 1.4;">${t.description}</div>
+                        ${t.count > 1 ? `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">Multiple occurrences (${t.count})</div>` : ''}
+                    </div>
+                `;
+                container.appendChild(li);
+            });
+        }
+
+        function closeDetailPopup() {
+            const popup = document.getElementById('detailPopup');
+            if (popup) popup.classList.remove('active');
+        }
+
+        // Close on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeDetailPopup();
+        });
+
+        // Close on click outside card
+        document.getElementById('detailPopup').addEventListener('click', (e) => {
+            if (e.target.id === 'detailPopup') closeDetailPopup();
+        });
 
         function applyFilters() {
             const textTerm = document.getElementById('filterText').value.toLowerCase();

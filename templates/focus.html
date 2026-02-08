@@ -156,14 +156,12 @@
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                         <div style="display:flex; flex-direction:column; gap:0.25rem;">
                             <label style="color:var(--text-secondary); font-size:0.85rem;">{{ t['start'] }}</label>
-                            <input type="text" class="input-field time-text-input focus-start-input"
-                                style="padding:0.3rem 0.5rem; min-width:80px;" placeholder="HH:MM"
+                            <input type="text" class="time-input focus-start-input" placeholder="HH:MM" maxlength="5"
                                 value="{{ row.start_time }}">
                         </div>
                         <div style="display:flex; flex-direction:column; gap:0.25rem;">
                             <label style="color:var(--text-secondary); font-size:0.85rem;">{{ t['end'] }}</label>
-                            <input type="text" class="input-field time-text-input focus-end-input"
-                                style="padding:0.3rem 0.5rem; min-width:80px;" placeholder="HH:MM"
+                            <input type="text" class="time-input focus-end-input" placeholder="HH:MM" maxlength="5"
                                 value="{{ row.end_time }}">
                         </div>
                         <div style="display:flex; flex-direction:column; gap:0.25rem; flex:1; min-width:160px;">
@@ -190,9 +188,8 @@
                         </div>
                         <div style="display:flex; align-items:center; gap:0.4rem;">
                             {{ t['focus_pause'] }}:
-                            <input type="text" class="input-field time-text-input focus-pause-total"
-                                style="padding:0.2rem 0.4rem; min-width:60px; width:70px;" placeholder="MM:SS"
-                                value="{{ row.pause_total }}">
+                            <input type="text" class="time-input focus-pause-total" style="width: 80px;"
+                                placeholder="MM:SS" maxlength="5" value="{{ row.pause_total }}">
                         </div>
                         <div>{{ t['focus_total'] }}: <strong style="color:var(--text-primary);">{{ row.total }}</strong>
                         </div>
@@ -450,7 +447,12 @@
             });
 
             if (res.ok) {
-                window.location.reload();
+                // Visual feedback
+                const originalColor = input.style.color;
+                input.style.color = 'var(--success)';
+                setTimeout(() => {
+                    input.style.color = originalColor;
+                }, 500);
             } else {
                 const data = await res.json();
                 alert(data.error || 'Failed to save');
@@ -461,13 +463,19 @@
             const focusId = row.getAttribute('data-focus-id');
             const inputs = row.querySelectorAll('input, select');
             const rowDate = row.getAttribute('data-date');
-            const startTime = normalizeTimeInput(inputs[0].value);
-            const endTime = normalizeTimeInput(inputs[1].value);
-            const note = inputs[2].value;
-            const pomodoro = inputs[3].value;
 
-            if (startTime) inputs[0].value = startTime;
-            if (endTime) inputs[1].value = endTime;
+            const startInput = row.querySelector('.focus-start-input');
+            const endInput = row.querySelector('.focus-end-input');
+            const noteInput = row.querySelector('.focus-note-input');
+            const pomodoroSelect = row.querySelector('.focus-pomodoro-select');
+
+            const startTime = normalizeTimeInput(startInput.value);
+            const endTime = normalizeTimeInput(endInput.value);
+            const note = noteInput.value;
+            const pomodoro = pomodoroSelect.value;
+
+            if (startTime) startInput.value = startTime;
+            if (endTime) endInput.value = endTime;
 
             const res = await fetch('/api/focus/update', {
                 method: 'POST',
@@ -484,7 +492,12 @@
             });
 
             if (res.ok) {
-                window.location.reload();
+                // Visual feedback for inputs
+                [startInput, endInput, noteInput].forEach(input => {
+                    const originalColor = input.style.color;
+                    input.style.color = 'var(--success)';
+                    setTimeout(() => input.style.color = originalColor, 500);
+                });
             } else {
                 const data = await res.json();
                 alert(data.error || 'Failed to save');
@@ -499,7 +512,12 @@
                 body: JSON.stringify({ focus_session_id: focusId })
             });
             if (res.ok) {
-                window.location.reload();
+                const element = document.querySelector(`.focus-entry[data-focus-id="${focusId}"]`);
+                if (element) {
+                    element.style.opacity = '0';
+                    element.style.transform = 'translateY(10px)';
+                    setTimeout(() => element.remove(), 300);
+                }
             } else {
                 alert('Failed to delete');
             }
@@ -523,8 +541,48 @@
             });
         }
 
+        function setupTimeInputs() {
+            document.querySelectorAll('.time-input').forEach(input => {
+                input.addEventListener('input', function (e) {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length > 4) val = val.slice(0, 4);
+
+                    if (val.length >= 2) {
+                        let h = val.slice(0, 2);
+                        const isDuration = input.classList.contains('focus-pause-total');
+                        if (!isDuration && parseInt(h) > 23) h = "23";
+                        let m = val.slice(2);
+                        if (m.length >= 2) {
+                            if (parseInt(m) > 59) m = "59";
+                            val = h + ":" + m.slice(0, 2);
+                        } else if (val.length > 2) {
+                            val = h + ":" + m;
+                        } else {
+                            val = h + ":";
+                        }
+                    }
+                    e.target.value = val;
+                });
+
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Backspace' && e.target.value.endsWith(':')) {
+                        e.preventDefault();
+                        e.target.value = e.target.value.slice(0, -2);
+                    }
+                });
+
+                // Trigger change on enter
+                input.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        e.target.blur();
+                    }
+                });
+            });
+        }
+
         initFocusUi();
         wireAutoSave();
+        setupTimeInputs();
     </script>
 </body>
 
