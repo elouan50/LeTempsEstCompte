@@ -154,10 +154,9 @@ def start_day():
 
     goal = request.form.get('goal')
     
-    # If goal is empty, use the Day Name (e.g. "Monday") as the goal
+    # If goal is empty, use the English Day Name (e.g. "Monday") as the goal
     if not goal or not goal.strip():
-        lang = get_locale()
-        trans = TRANSLATIONS.get(lang, TRANSLATIONS['en'])
+        trans = TRANSLATIONS['en']
         goal = trans['full_days'][session_date.weekday()]
         
     # Check if session exists for this date

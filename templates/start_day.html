@@ -71,10 +71,22 @@
                 function updatePlaceholder() {
                     const dateVal = dateInput.valueAsDate;
                     if (dateVal) {
-                        const dayName = new Intl.DateTimeFormat(currentLang, { weekday: 'long', timeZone: 'UTC' }).format(dateVal);
+                        // Always use English day name as the default goal
+                        const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(dateVal);
                         goalInput.placeholder = dayName;
+
+                        // If current value is empty or matches a previous default, update it to the new default
+                        if (!goalInput.value || goalInput.dataset.isDefault === 'true') {
+                            goalInput.value = dayName;
+                            goalInput.dataset.isDefault = 'true';
+                        }
                     }
                 }
+
+                // If user manually types, mark it as not default anymore
+                goalInput.addEventListener('input', () => {
+                    goalInput.dataset.isDefault = 'false';
+                });
 
                 updatePlaceholder();
 
