@@ -832,6 +832,14 @@
         let currentViewType = localStorage.getItem('metricsViewType') || 'week';
         let showFocusSessions = localStorage.getItem('showFocusSessions') === 'true';
 
+        function formatDateLocal(date) {
+            if (!date) return null;
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
         function toggleFocusDisplay() {
             showFocusSessions = document.getElementById('showFocusToggle').checked;
             localStorage.setItem('showFocusSessions', showFocusSessions);
@@ -1028,7 +1036,7 @@
             };
 
             if (currentViewType === 'day') {
-                const dateStr = currentViewDate.toISOString().split('T')[0];
+                const dateStr = formatDateLocal(currentViewDate);
                 const dayName = currentViewDate.toLocaleDateString(currentLang, { weekday: 'long' });
                 updateLabel(null, null, `${dayName} ${currentViewDate.getDate()} ${currentViewDate.toLocaleDateString(currentLang, { month: 'short', year: 'numeric' })}`);
 
@@ -1059,7 +1067,7 @@
                 for (let i = 0; i < 7; i++) {
                     const d = new Date(startOfWeek);
                     d.setDate(startOfWeek.getDate() + i);
-                    const dateStr = d.toISOString().split('T')[0];
+                    const dateStr = formatDateLocal(d);
                     const dayName = d.toLocaleDateString(currentLang, { weekday: 'short' });
 
                     if (d.getFullYear() === todayY && d.getMonth() === todayM && d.getDate() === todayD) {
@@ -1165,11 +1173,14 @@
 
             // Extract status for each day to use for coloring
             const dayStatuses = chartLabels.map((_, i) => {
-                const dateStr = currentViewType === 'week' ?
-                    new Date(getStartOfWeek(currentViewDate).getTime() + i * 86400000).toISOString().split('T')[0] :
-                    (currentViewType === 'month' ?
-                        `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}` :
-                        null);
+                let dateStr = null;
+                if (currentViewType === 'week') {
+                    const d = new Date(getStartOfWeek(currentViewDate));
+                    d.setDate(d.getDate() + i);
+                    dateStr = formatDateLocal(d);
+                } else if (currentViewType === 'month') {
+                    dateStr = `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+                }
 
                 if (currentViewType === 'year') return 'work'; // Month averages are always 'work' color
 
@@ -1739,12 +1750,7 @@
 
                                     const id = sessionIds[index];
                                     if (id) {
-                                        const session = sessionData[index];
-                                        if (session) {
-                                            showSessionDetails(session);
-                                        } else {
-                                            window.location.href = `/dashboard/${id}?edit=true`;
-                                        }
+                                        window.location.href = `/dashboard/${id}?edit=true`;
                                     }
                                 } else {
                                     // Week Bar Click (Month View)
@@ -2024,53 +2030,6 @@
         }
 
         // Detailed Popup Logic
-        function showSessionDetails(session) {
-            const popup = document.getElementById('detailPopup');
-            const title = document.getElementById('detailTitle');
-            const subtitle = document.getElementById('detailSubtitle');
-            const stats = document.getElementById('detailStatsSummary');
-            const tasksList = document.getElementById('detailTasksList');
-            const link = document.getElementById('detailLink');
-
-            const date = new Date(session.date);
-            const dateStr = date.toLocaleDateString(currentLang, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-            title.innerText = session.goal || i18n['working_day'];
-            subtitle.innerText = dateStr;
-
-            // Stats
-            const startH = getLocalHour(session.start_time);
-            const endH = getLocalHour(session.end_time);
-            const pauseH = getTotalPauseHours(session.pauses);
-            let workH = 0;
-            if (startH && endH) {
-                workH = Math.max(endH - startH - pauseH, 0);
-            }
-
-            stats.innerHTML = `
-                <div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['total_hours']}</div>
-                    <div style="font-weight: 600;">${Math.floor(workH)}h ${Math.round((workH % 1) * 60)}m</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['status']}</div>
-                    <div style="font-weight: 600; color: var(--accent);">${i18n[session.status] || session.status}</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${i18n['tasks']}</div>
-                    <div style="font-weight: 600;">${session.tasks.filter(t => t.is_completed).length} / ${session.tasks.length}</div>
-                </div>
-            `;
-
-            // Tasks
-            renderDetailedTasks(session.tasks, tasksList);
-
-            link.href = `/dashboard/${session.id}?edit=true`;
-            link.innerText = i18n['open_dashboard'];
-            link.style.display = 'inline-block';
-
-            popup.classList.add('active');
-        }
 
         function showSupertagDetails(group) {
             const popup = document.getElementById('detailPopup');
