@@ -347,7 +347,6 @@
             gap: 0.4rem;
             margin-top: 0.75rem;
             padding-top: 0.75rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
             animation: slideDown 0.3s ease-out;
         }
 
@@ -371,6 +370,41 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             color: var(--text-secondary);
             white-space: nowrap;
+        }
+
+        /* Grouped Detail Popup Styles */
+        .detail-subtag-section {
+            margin-bottom: 2rem;
+            padding-left: 1rem;
+            border-left: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .detail-subtag-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .detail-subtag-title {
+            font-weight: 600;
+            font-size: 1rem;
+            letter-spacing: 0.02em;
+        }
+
+        .detail-subtag-time {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .mini-tag-badge {
+            font-size: 0.65rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
     <script>
@@ -485,9 +519,10 @@
                 </div>
 
                 <!-- Circular Charts side container, stacked -->
-                <div style="display: flex; flex-direction: column; gap: 20px; height: 520px;">
+                <div id="circularChartsContainer"
+                    style="display: flex; flex-direction: column; gap: 20px; height: 520px;">
                     <!-- Time Breakdown -->
-                    <div
+                    <div id="timeBreakdownContainer"
                         style="height: 250px; display: flex; flex-direction: column; align-items: center; min-width: 0; background: var(--bg-secondary); border-radius: 12px; padding: 1rem; border: 1px solid var(--border);">
                         <h3
                             style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
@@ -508,7 +543,7 @@
                     </div>
 
                     <!-- Task Breakdown -->
-                    <div
+                    <div id="taskBreakdownContainer"
                         style="height: 250px; display: flex; flex-direction: column; align-items: center; min-width: 0; background: var(--bg-secondary); border-radius: 12px; padding: 1rem; border: 1px solid var(--border);">
                         <h3
                             style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
@@ -1298,7 +1333,8 @@
                             // Add task to tag's task list (avoiding exact duplicates if needed, but here simple push is fine)
                             tagTaskData[tagName].tasks.push({
                                 description: task.description,
-                                is_completed: task.is_completed
+                                is_completed: task.is_completed,
+                                tags: task.tags || []
                             });
                         });
                     });
@@ -1426,6 +1462,14 @@
                         pill.onmousemove = (e) => updateTagTasksPopupPosition(e);
                         pill.onmouseleave = () => hideTagTasksPopup();
 
+                        const subpillsHtml = group.subtags && group.subtags.length > 0 ? `
+                            <div class="subpill-container">
+                                ${group.subtags.map(st => `
+                                    <div class="subpill" title="${st.tag}">${st.tag}</div>
+                                `).join('')}
+                            </div>
+                        ` : '';
+
                         pill.innerHTML = `
                             <div class="super-pill-header">
                                 <div style="display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0;">
@@ -1444,6 +1488,7 @@
                             <div style="width: 100%; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; overflow: hidden; margin-top: 0.5rem;">
                                 <div style="width: ${completionRate}%; height: 100%; background: ${color}; transition: width 0.3s ease;"></div>
                             </div>
+                            ${subpillsHtml}
                         `;
 
                         tagSummary.appendChild(pill);
@@ -1536,6 +1581,21 @@
 
             if (tagChartTasksInstance) tagChartTasksInstance.destroy();
 
+            // Handle conditional layout for breakdown charts
+            const circleContainer = document.getElementById('circularChartsContainer');
+            const timeContainer = document.getElementById('timeBreakdownContainer');
+            const taskContainer = document.getElementById('taskBreakdownContainer');
+
+            if (circleContainer && timeContainer && taskContainer) {
+                if (showFocusSessions) {
+                    timeContainer.style.display = 'flex';
+                    circleContainer.style.justifyContent = 'flex-start';
+                } else {
+                    timeContainer.style.display = 'none';
+                    circleContainer.style.justifyContent = 'center';
+                }
+            }
+
             if (taskLabels.length > 0) {
                 canvasTasks.style.display = 'block';
                 emptyStateTasks.style.display = 'none';
@@ -1570,7 +1630,7 @@
                                 callbacks: {
                                     label: function (context) {
                                         const supertagName = context.label;
-                                        const groupData = tagTaskData[supertagName]; // actually supertagTaskData
+                                        const groupData = tagTaskData[supertagName];
                                         const percentage = totalTasks > 0 ? ((context.parsed / totalTasks) * 100).toFixed(1) : 0;
                                         if (groupData) {
                                             return `${supertagName}: ${groupData.completed}/${context.parsed} tasks (${percentage}%)`;
@@ -1579,9 +1639,28 @@
                                     }
                                 }
                             }
-                        },
-                        cutout: '70%'
-                    }
+                        }
+                    },
+                    plugins: [{
+                        id: 'datalabels',
+                        afterDatasetsDraw: function (chart) {
+                            const ctx = chart.ctx;
+                            chart.data.datasets.forEach((dataset, i) => {
+                                const meta = chart.getDatasetMeta(i);
+                                meta.data.forEach((element, index) => {
+                                    const data = dataset.data[index];
+                                    const percentage = totalTasks > 0 ? ((data / totalTasks) * 100).toFixed(1) : 0;
+                                    if (percentage > 5) {
+                                        const position = element.tooltipPosition();
+                                        ctx.font = 'bold 12px Inter';
+                                        ctx.fillStyle = '#fff';
+                                        ctx.textAlign = 'center';
+                                        ctx.fillText(percentage + '%', position.x, position.y);
+                                    }
+                                });
+                            });
+                        }
+                    }]
                 });
             } else {
                 canvasTasks.style.display = 'none';
@@ -2064,26 +2143,54 @@
                 </div>
             `;
 
-            const allTasks = [];
-            group.subtags.forEach(st => {
-                if (st.taskData && st.taskData.tasks) {
-                    allTasks.push(...st.taskData.tasks);
+            // Render grouped subtags and their tasks
+            tasksList.innerHTML = '';
+
+            // Sort subtags by time or tasks count? Let's do time.
+            const sortedSubtags = group.subtags.sort((a, b) => b.timeMins - a.timeMins);
+
+            sortedSubtags.forEach(st => {
+                const subSection = document.createElement('div');
+                subSection.className = 'detail-subtag-section';
+
+                const sHours = Math.floor(st.timeMins / 60);
+                const sMins = Math.round(st.timeMins % 60);
+                const sCompleted = st.taskData ? st.taskData.completed : 0;
+                const sTotal = st.taskData ? st.taskData.total : 0;
+
+                subSection.innerHTML = `
+                    <div class="detail-subtag-header">
+                        <span class="detail-subtag-title" style="color: ${group.color}">${st.tag}</span>
+                        <span class="detail-subtag-time">${sHours}h ${sMins}m • ${Math.round(sCompleted * 10) / 10}/${Math.round(sTotal * 10) / 10} ${i18n['tasks']}</span>
+                    </div>
+                `;
+
+                const subTaskList = document.createElement('ul');
+                subTaskList.className = 'task-list-detailed';
+                subTaskList.style.marginBottom = '1rem';
+
+                if (st.taskData && st.taskData.tasks && st.taskData.tasks.length > 0) {
+                    renderDetailedTasks(st.taskData.tasks, subTaskList, group.color);
+                } else {
+                    subTaskList.innerHTML = `<li style="padding: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); opacity: 0.6; font-style: italic;">No specific tasks for this tag</li>`;
                 }
+
+                subSection.appendChild(subTaskList);
+                tasksList.appendChild(subSection);
             });
-            renderDetailedTasks(allTasks, tasksList);
 
             link.style.display = 'none';
             popup.classList.add('active');
         }
 
-        function renderDetailedTasks(tasks, container) {
+        function renderDetailedTasks(tasks, container, accentColor) {
             container.innerHTML = '';
             if (!tasks || tasks.length === 0) {
                 container.innerHTML = `<li style="color: var(--text-secondary); font-style: italic;">No tasks found</li>`;
                 return;
             }
 
-            // Group duplicates
+            // Group duplicates within this tag
             const taskMap = new Map();
             tasks.forEach(t => {
                 const key = t.description;
@@ -2098,13 +2205,22 @@
             Array.from(taskMap.values()).forEach(t => {
                 const li = document.createElement('li');
                 li.className = 'task-item-detailed';
+
+                // Other tags to show as mini-pills
+                const otherTagsHtml = (t.tags || [])
+                    .map(tag => `<span class="mini-tag-badge">${tag}</span>`)
+                    .join('');
+
                 li.innerHTML = `
                     <div class="task-detail-status ${t.is_completed ? 'task-detail-completed' : 'task-detail-pending'}">
                         ${t.is_completed ? '✓' : '✗'}
                     </div>
                     <div style="flex: 1; min-width: 0;">
                         <div style="color: var(--text-primary); font-size: 0.95rem; line-height: 1.4;">${t.description}</div>
-                        ${t.count > 1 ? `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">Multiple occurrences (${t.count})</div>` : ''}
+                        <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 4px;">
+                            ${t.count > 1 ? `<span style="font-size: 0.7rem; color: var(--text-secondary);">${t.count}x</span>` : ''}
+                            ${otherTagsHtml}
+                        </div>
                     </div>
                 `;
                 container.appendChild(li);
