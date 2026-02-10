@@ -300,26 +300,29 @@
         .super-pill {
             display: flex;
             flex-direction: column;
-            padding: 0.6rem 1rem;
-            border-radius: 24px;
-            background: var(--bg-card);
+            padding: 0.8rem 1.2rem;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border);
-            min-width: 140px;
+            min-width: 160px;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
             flex-shrink: 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
         .super-pill:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.06);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.2);
         }
 
         .super-pill.expanded {
             border-color: var(--accent);
-            background: rgba(var(--accent-rgb), 0.05);
+            background: rgba(var(--accent-rgb), 0.08);
         }
 
         .super-pill-header {
@@ -333,12 +336,32 @@
             font-size: 0.9rem;
             font-weight: 600;
             outline: none;
-            border-bottom: 1px solid transparent;
-            transition: border-color 0.2s;
+            border-bottom: 1px dashed transparent;
+            transition: all 0.2s ease;
+            cursor: text;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .supertag-name:hover {
+            border-bottom-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .supertag-name::after {
+            content: '✎';
+            font-size: 0.65rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+            filter: grayscale(1);
+        }
+
+        .supertag-name:hover::after {
+            opacity: 0.6;
         }
 
         .supertag-name:focus {
-            border-bottom-color: currentColor;
+            border-bottom: 1px solid currentColor;
         }
 
         .subpill-container {
@@ -430,36 +453,34 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
             <h1>{{ t['app_name'] }}</h1>
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; align-items: center;">
-                <div class="lang-switcher" style="display: flex; align-items: center;">
-                    <a href="/profile" class="btn btn-secondary btn-sm"
-                        style="padding: 0.5rem 0.75rem; display: flex; align-items: center; margin-right: 0.75rem;">
-                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+                <a href="/profile" class="btn btn-secondary btn-sm"
+                    style="padding: 0.5rem 0.75rem; display: flex; align-items: center;">
+                    <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+                        <path
+                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
+                </a>
+                <details class="action-details">
+                    <summary class="btn btn-secondary btn-sm"
+                        style="padding: 0.5rem 0.75rem; display: flex; align-items: center;">
+                        <svg class="lang-icon" viewBox="0 0 24 24">
                             <path
-                                d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
                         </svg>
-                    </a>
-                    <details class="action-details">
-                        <summary class="btn btn-secondary btn-sm"
-                            style="padding: 0.5rem 0.75rem; display: flex; align-items: center;">
-                            <svg class="lang-icon" viewBox="0 0 24 24">
-                                <path
-                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-                            </svg>
-                            {{ lang | upper }} <span style="font-size: 0.7rem; margin-left: 0.25rem;">▼</span>
-                        </summary>
-                        <div class="action-menu-content">
-                            <a href="/set_language/en"
-                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇬🇧</span>
-                                English</a>
-                            <a href="/set_language/de"
-                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇩🇪</span>
-                                Deutsch</a>
-                            <a href="/set_language/fr"
-                                style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇫🇷</span>
-                                Français</a>
-                        </div>
-                    </details>
-                </div>
+                        {{ lang | upper }} <span style="font-size: 0.7rem; margin-left: 0.25rem;">▼</span>
+                    </summary>
+                    <div class="action-menu-content">
+                        <a href="/set_language/en"
+                            style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇬🇧</span>
+                            English</a>
+                        <a href="/set_language/de"
+                            style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇩🇪</span>
+                            Deutsch</a>
+                        <a href="/set_language/fr"
+                            style="text-decoration: none; color: inherit; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;"><span>🇫🇷</span>
+                            Français</a>
+                    </div>
+                </details>
                 <a href="/reports" class="btn btn-secondary" style="display: inline-flex; align-items: center;">
                     <svg viewBox="0 0 24 24"
                         style="width: 18px; height: 18px; fill: currentColor; margin-right: 0.5rem;">
@@ -571,8 +592,17 @@
                     <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ t['total_hours'] }}</div>
                     <div id="totalHours" style="font-size: 1.5rem; font-weight: 600;">-- h</div>
                 </div>
-                <div id="tagSummary" class="tag-summary-scroll"
-                    style="flex: 1; display: flex; gap: 0.75rem; flex-wrap: nowrap; justify-content: flex-start; align-items: center; overflow-x: auto; padding-bottom: 0.5rem; padding-top: 0.5rem; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--accent) transparent;">
+                <div id="tagSummaryContainer" style="flex: 1; position: relative; overflow: hidden;">
+                    <div id="tagSummary" class="tag-summary-scroll"
+                        style="display: flex; gap: 1rem; flex-wrap: nowrap; justify-content: flex-start; align-items: stretch; overflow-x: auto; padding: 1rem 0.5rem; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
+                    </div>
+                    <!-- Fade masks -->
+                    <div
+                        style="position: absolute; top: 0; left: 0; bottom: 0; width: 30px; background: linear-gradient(to right, var(--card-bg), transparent); pointer-events: none; z-index: 10;">
+                    </div>
+                    <div
+                        style="position: absolute; top: 0; right: 0; bottom: 0; width: 30px; background: linear-gradient(to left, var(--card-bg), transparent); pointer-events: none; z-index: 10;">
+                    </div>
                 </div>
             </div>
         </div>
@@ -1499,6 +1529,24 @@
 
         // Helper to separate chart rendering from data grouping
         function renderCharts(timeLabels, timeValues, timeColors, totalTimeMins, taskLabels, taskValues, taskColors, totalTasks, tagTaskData, colorGroups) {
+            // Handle conditional layout for breakdown charts BEFORE rendering
+            const circleContainer = document.getElementById('circularChartsContainer');
+            const timeContainer = document.getElementById('timeBreakdownContainer');
+            const taskContainer = document.getElementById('taskBreakdownContainer');
+
+            if (circleContainer && timeContainer && taskContainer) {
+                if (showFocusSessions) {
+                    timeContainer.style.display = 'flex';
+                    timeContainer.style.height = '250px';
+                    taskContainer.style.height = '250px';
+                    circleContainer.style.justifyContent = 'flex-start';
+                } else {
+                    timeContainer.style.display = 'none';
+                    taskContainer.style.height = '520px';
+                    circleContainer.style.justifyContent = 'center';
+                }
+            }
+
             // Render time-based doughnut chart
             const ctxTime = document.getElementById('tagChartTime').getContext('2d');
             const canvasTime = document.getElementById('tagChartTime');
@@ -1580,21 +1628,6 @@
             const emptyStateTasks = document.getElementById('tagChartTasksEmpty');
 
             if (tagChartTasksInstance) tagChartTasksInstance.destroy();
-
-            // Handle conditional layout for breakdown charts
-            const circleContainer = document.getElementById('circularChartsContainer');
-            const timeContainer = document.getElementById('timeBreakdownContainer');
-            const taskContainer = document.getElementById('taskBreakdownContainer');
-
-            if (circleContainer && timeContainer && taskContainer) {
-                if (showFocusSessions) {
-                    timeContainer.style.display = 'flex';
-                    circleContainer.style.justifyContent = 'flex-start';
-                } else {
-                    timeContainer.style.display = 'none';
-                    circleContainer.style.justifyContent = 'center';
-                }
-            }
 
             if (taskLabels.length > 0) {
                 canvasTasks.style.display = 'block';
@@ -1720,9 +1753,9 @@
                         label: i18n['working_time'],
                         data: data,
                         backgroundColor: showFocusSessions ?
-                            dayStatuses.map(s => (s === 'work' || !s) ? 'rgba(148, 163, 184, 0.3)' : (colors[s] || colors['work'])) :
+                            dayStatuses.map(s => (s === 'work' || !s) ? 'rgba(148, 163, 184, 0.15)' : (colors[s] || colors['work'])) :
                             (dayStatuses ? dayStatuses.map(s => colors[s] || colors['work']) : '#38bdf8'),
-                        borderRadius: 4,
+                        borderRadius: 8,
                         borderSkipped: false,
                         grouped: !showFocusSessions,
                         order: showFocusSessions ? 2 : 1,
@@ -1781,7 +1814,7 @@
                                 label: i18n['focus'],
                                 data: focusData,
                                 backgroundColor: focusBackgroundColors,
-                                borderRadius: 4,
+                                borderRadius: 6,
                                 borderSkipped: false,
                                 type: 'bar',
                                 grouped: false, // Ensure overlap
@@ -2181,6 +2214,10 @@
 
             link.style.display = 'none';
             popup.classList.add('active');
+
+            // Reset scroll position to top
+            const body = popup.querySelector('.detail-body');
+            if (body) body.scrollTop = 0;
         }
 
         function renderDetailedTasks(tasks, container, accentColor) {
