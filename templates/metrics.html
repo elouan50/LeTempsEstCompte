@@ -642,7 +642,7 @@
                                 data-time="{{ session.end_time.isoformat() if session.end_time and session.status == 'work' else '' }}">
                             </td>
                             <td>
-                                {% if session.status == 'sick' or session.status == 'vacation' %}
+                                {% if session.status != 'work' %}
                                 -
                                 {% else %}
                                 {% set total_pause_mins = namespace(value=0) %}
@@ -691,10 +691,8 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if session.status == 'sick' %}
-                                <span style="color: var(--accent);">{{ t['sick'] }}</span>
-                                {% elif session.status == 'vacation' %}
-                                <span style="color: var(--accent);">{{ t['vacation'] }}</span>
+                                {% if session.status != 'work' %}
+                                <span style="color: var(--accent);">{{ t[session.status] or session.status }}</span>
                                 {% else %}
                                 {% if session.end_time %}
                                 <span style="color: var(--success);">{{ t['completed'] }}</span>
@@ -1023,19 +1021,18 @@
         }
 
         function getWorkSegments(entry) {
-            if (!entry) return [];
+            if (!entry || !entry.start_time) return [];
 
-            if (entry.status === 'sick' || entry.status === 'vacation') {
-                return [[9, 18]];
-            }
-
-            if (!entry.start_time) return [];
             const s = getLocalHour(entry.start_time);
             let e = getLocalHour(entry.end_time);
 
             if (e === null) {
                 const now = new Date();
                 e = now.getHours() + (now.getMinutes() / 60);
+            }
+
+            if (entry.status !== 'work') {
+                return [[9, 17]];
             }
 
             let segments = [];
@@ -1083,8 +1080,14 @@
                 let sumStart = 0, sumEnd = 0;
 
                 entries.forEach(e => {
-                    const s = getLocalHour(e.start_time);
-                    const end = getLocalHour(e.end_time);
+                    let s, end;
+                    if (e.status !== 'work') {
+                        s = 9;
+                        end = 17;
+                    } else {
+                        s = getLocalHour(e.start_time);
+                        end = getLocalHour(e.end_time);
+                    }
 
                     if (s !== null && end !== null) {
                         sumStart += s;
@@ -1268,25 +1271,25 @@
             const todayD = now.getDate();
 
             data.forEach(d => {
-                const start = getLocalHour(d.start_time);
-                let end = getLocalHour(d.end_time);
+                if (!d.start_time) return;
+
+                const d_start = new Date(d.start_time);
+                let d_end = d.end_time ? new Date(d.end_time) : null;
 
                 // If in progress and it's today, use current time for stats
-                if (!end && start) {
+                if (!d_end) {
                     const sessionDate = new Date(d.date);
                     if (sessionDate.getFullYear() === todayY &&
                         sessionDate.getMonth() === todayM &&
                         sessionDate.getDate() === todayD) {
-                        end = now.getHours() + (now.getMinutes() / 60);
+                        d_end = new Date();
                     }
                 }
 
-                const pauseHours = getTotalPauseHours(d.pauses);
-
-                // Calculate worked hours for this entry
-                if (start && end) {
-                    let work = end - start - pauseHours;
-                    if (work > 0) totalWork += work;
+                if (d_start && d_end) {
+                    const pauseMinutes = getTotalPauseHours(d.pauses) * 60;
+                    const workedMinutes = Math.max(0, ((d_end - d_start) / 60000) - pauseMinutes);
+                    totalWork += workedMinutes / 60;
                 }
             });
 
@@ -1710,8 +1713,11 @@
 
             const colors = {
                 'work': '#38bdf8',
-                'vacation': '#fb923c', // Orange
-                'sick': '#a78bfa'     // Violet
+                'vacation': '#fb923c',    // Orange
+                'sick': '#a78bfa',        // Violet
+                'conference': '#10b981', // Emerald
+                'project': '#f59e0b',    // Amber
+                'other': '#64748b'       // Slate
             };
 
             // Fetch tags for colors before rendering
@@ -1951,7 +1957,13 @@
                                             }
                                             const yRange = Array.isArray(raw) ? raw : (raw.y || null);
                                             if (yRange) {
-                                                return `${formatHour(yRange[0])} - ${formatHour(yRange[1])}`;
+                                                const dayIdx = context.dataIndex;
+                                                const status = dayStatuses[dayIdx];
+                                                let label = i18n['working_time'];
+                                                if (status && status !== 'work') {
+                                                    label = i18n[status] || status;
+                                                }
+                                                return `${label}: ${formatHour(yRange[0])} - ${formatHour(yRange[1])}`;
                                             }
                                             return context.formattedValue;
                                         }

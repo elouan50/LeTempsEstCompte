@@ -775,7 +775,7 @@ def update_session_status():
     session_id = data.get('session_id')
     new_status = data.get('status')
 
-    if new_status not in ('work', 'sick', 'vacation'):
+    if new_status not in ('work', 'sick', 'vacation', 'conference', 'project', 'other'):
         return jsonify({'error': 'Invalid status'}), 400
 
     session = db.session.get(DailySession, session_id)
@@ -784,19 +784,62 @@ def update_session_status():
 
     session.status = new_status
 
-    if new_status in ('sick', 'vacation'):
-        session.start_time = None
-        session.end_time = None
+    if new_status != 'work':
         for pause in list(session.pauses):
             db.session.delete(pause)
+        
+        # Fake times: Start at 9:00 AM
+        session.start_time = datetime.combine(session.date, datetime.min.time()).replace(hour=9)
+        if new_status in ('sick', 'vacation'):
+            session.end_time = session.start_time # 0 hours
+        else:
+            session.end_time = session.start_time + timedelta(hours=8) # 8 hours
 
     db.session.commit()
     return jsonify({'status': 'success'})
+
+@app.route('/api/session/update_ooo_hours', methods=['POST'])
+def update_session_ooo_hours():
+    data = request.json
+    session_id = data.get('session_id')
+    hours_str = data.get('hours') # "HH:MM"
+    
+    session = db.session.get(DailySession, session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+        
+    try:
+        h, m = map(int, hours_str.split(':'))
+        session.start_time = datetime.combine(session.date, datetime.min.time()).replace(hour=9)
+        session.end_time = session.start_time + timedelta(hours=h, minutes=m)
+        db.session.commit()
+        return jsonify({'status': 'success'})
+    except (ValueError, AttributeError):
+        return jsonify({'error': 'Invalid format'}), 400
 
 @app.route('/api/session/rollback', methods=['POST'])
 def rollback_session():
     data = request.json
     session_id = data.get('session_id')
+    
+    # Simple rollback for now - could be more robust
+    if session_id in SNAPSHOTS:
+        snap = SNAPSHOTS[session_id]
+        session = db.session.get(DailySession, session_id)
+        if session:
+            session.goal = snap['goal']
+            session.status = snap['status']
+            if snap['start_time']:
+                session.start_time = datetime.fromisoformat(snap['start_time'])
+            else:
+                session.start_time = None
+            if snap['end_time']:
+                session.end_time = datetime.fromisoformat(snap['end_time'])
+            else:
+                session.end_time = None
+            db.session.commit()
+    
+    return jsonify({'status': 'success'})
     
     if not session_id or session_id not in SNAPSHOTS:
         return jsonify({'error': 'No snapshot found for this session'}), 404
@@ -912,8 +955,8 @@ def metrics_data():
             'id': s.id,
             'date': s.date.isoformat(),
             'status': s.status,
-            'start_time': s.start_time.isoformat() if s.start_time and s.status == 'work' else None,
-            'end_time': s.end_time.isoformat() if s.end_time and s.status == 'work' else None,
+            'start_time': s.start_time.isoformat() if s.start_time else None,
+            'end_time': s.end_time.isoformat() if s.end_time else None,
             'pauses': pauses_data,
             'focus_sessions': focus_data,
             'tasks': tasks_data
@@ -1308,11 +1351,27 @@ def reports_pdf():
             iso_year, iso_week, _ = session.date.isocalendar()
             weekly_totals.setdefault((iso_year, iso_week), {"work": 0, "pause": 0, "total": 0})
 
-            if session.status in ("sick", "vacation"):
-                work_minutes = 0
+            if session.status != "work":
+                if not session.start_time or not session.end_time:
+                    work_minutes = 0
+                    total_minutes = 0
+                else:
+                    total_minutes = int((session.end_time - session.start_time).total_seconds() / 60)
+                    work_minutes = total_minutes
+                
                 pause_minutes = 0
-                total_minutes = 0
-                note = trans['krank'] if session.status == "sick" else trans['urlaub']
+                
+                # Dynamic Note for PDF
+                if session.status == "sick":
+                    note = trans.get('sick', 'Sick')
+                elif session.status == "vacation":
+                    note = trans.get('vacation', 'Vacation')
+                elif session.status == "conference":
+                    note = trans.get('conference', 'Conference')
+                elif session.status == "project":
+                    note = trans.get('project', 'Project')
+                else:
+                    note = trans.get('other', 'Other')
             else:
                 if not session.start_time or not session.end_time:
                     work_minutes = 0

@@ -78,6 +78,7 @@ TRANSLATIONS = {
         'back_to_home': 'Back to Home',
         'placeholder_goal': 'What is your main goal?',
         'todays_goal': "Today's Goal",
+        'wished_hours': 'Wished Hours',
         'add_new_task': 'Add a new task...',
         'add_task_btn': 'Add Task',
         'add_pause_btn': '+ Add Pause',
@@ -153,7 +154,14 @@ TRANSLATIONS = {
         'birthday_optional': 'Birthday (Optional)',
         'save_changes': 'Save Changes',
         'saved': 'Saved',
-        'back_to_dashboard': 'Back to Dashboard'
+        'back_to_dashboard': 'Back to Dashboard',
+        'on_office': 'In-Office',
+        'out_of_office': 'Out-of-Office',
+        'conference': 'Conference',
+        'project': 'Project',
+        'other': 'Other',
+        'reason': 'Reason',
+        'wished_hours': 'Wished hours'
     },
     'de': {
         'app_name': 'LeTempsEstCompté',
@@ -233,6 +241,7 @@ TRANSLATIONS = {
         'back_to_home': 'Zurück zur Startseite',
         'placeholder_goal': 'Was ist dein Hauptziel?',
         'todays_goal': "Heutiges Ziel",
+        'wished_hours': 'Gewünschte Stunden',
         'add_new_task': 'Neue Aufgabe hinzufügen...',
         'add_task_btn': 'Hinzufügen',
         'add_pause_btn': '+ Pause hinzufügen',
@@ -308,7 +317,14 @@ TRANSLATIONS = {
         'birthday_optional': 'Geburtstag (Optional)',
         'save_changes': 'Änderungen speichern',
         'saved': 'Gespeichert',
-        'back_to_dashboard': 'Zurück zum Dashboard'
+        'back_to_dashboard': 'Zurück zum Dashboard',
+        'on_office': 'Im Büro',
+        'out_of_office': 'Abwesend',
+        'conference': 'Konferenz',
+        'project': 'Projekt',
+        'other': 'Sonstiges',
+        'reason': 'Grund',
+        'wished_hours': 'Gewünschte Stunden'
     },
     'fr': {
         'app_name': 'LeTempsEstCompté',
@@ -388,6 +404,7 @@ TRANSLATIONS = {
         'back_to_home': 'Retour à l\'accueil',
         'placeholder_goal': 'Quel est votre objectif principal ?',
         'todays_goal': "Objectif du jour",
+        'wished_hours': 'Heures souhaitées',
         'add_new_task': 'Ajouter une nouvelle tâche...',
         'add_task_btn': 'Ajouter',
         'add_pause_btn': '+ Ajouter une pause',
@@ -463,6 +480,13 @@ TRANSLATIONS = {
         'birthday_optional': 'Anniversaire (Optionnel)',
         'save_changes': 'Enregistrer',
         'saved': 'Enregistré',
-        'back_to_dashboard': 'Retour au tableau de bord'
+        'back_to_dashboard': 'Retour au tableau de bord',
+        'on_office': 'Au bureau',
+        'out_of_office': 'Hors du bureau',
+        'conference': 'Conférence',
+        'project': 'Projet',
+        'other': 'Autre',
+        'reason': 'Raison',
+        'wished_hours': 'Heures souhaitées'
     }
 }
